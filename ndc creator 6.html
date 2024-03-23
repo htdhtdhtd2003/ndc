@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Extract Medication Information</title>
+</head>
+<body>
+  <h1>Extract Item Name and NDC</h1>
+  <textarea id="inputData" rows="10" cols="50"></textarea><br><br>
+  <button onclick="extractData()">Extract Data</button><br><br>
+  <div id="output"></div>
+
+  <script>
+    function extractData1() {
+      const inputData = document.getElementById("inputData").value.split("\n");
+      const outputDiv = document.getElementById("output");
+      outputDiv.innerHTML = "";
+
+      const extractedData = new Set(); // Use a Set to store unique lines
+
+      inputData.forEach(function(line) {
+        const match = line.match(/(.+?)\b(\d{5}-\d{4}-\d{2})/);
+
+        if (match) {
+          const medicationInfo = match[1].trim().replace(/"/g, ''); // Remove all double quotes from medicationInfo
+          const ndc = match[2];
+          extractedData.add(medicationInfo + " " + ndc);
+        } else {
+          console.log("Pattern not found in input string: " + line);
+        }
+      });
+
+      // Convert the Set to an array and append each line as a new paragraph element
+      [...extractedData].forEach(function(line) {
+        const p = document.createElement("p");
+        p.textContent = line;
+        outputDiv.appendChild(p);
+      });
+
+      // Optionally, save the unique lines to a text file
+      saveToFile([...extractedData].join("\n"), "ndc plain.txt");
+      
+    }
+
+ function extractData() {
+      const inputData = document.getElementById("inputData").value.split("\n");
+      const outputDiv = document.getElementById("output");
+      outputDiv.innerHTML = "";
+
+      const extractedData = new Set(); // Use a Set to store unique lines
+
+      inputData.forEach(function(line) {
+        const match = line.match(/(.+?)\b(\d{5}-\d{4}-\d{2})/);
+
+        if (match) {
+          const medicationInfo = match[1].trim().replace(/"/g, ''); // Remove all double quotes from medicationInfo
+          const ndc = match[2];
+          extractedData.add('"' + medicationInfo + " " + ndc + '",');
+        } else {
+          console.log("Pattern not found in input string: " + line);
+        }
+      });
+
+      // Convert the Set to an array and append each line as a new paragraph element
+      [...extractedData].forEach(function(line) {
+        const p = document.createElement("p");
+        p.textContent = line;
+        outputDiv.appendChild(p);
+      });
+
+      // Optionally, save the unique lines to a text file
+      saveToFile([...extractedData].join("\n"), "ndc for html.txt");
+extractData1()
+    }
+
+    function saveToFile(content, filename) {
+      const blob = new Blob([content], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+  </script>
+</body>
+</html>
