@@ -52,7 +52,7 @@ let index = 0;
 let interval = 10000;
 let paused = false;
 
-// Add NDC input row
+// Add new NDC input row
 function addNDCInput() {
   ndcCount++;
   const container = document.getElementById('ndcContainer');
@@ -68,30 +68,33 @@ function addNDCInput() {
   container.appendChild(row);
 
   const input = row.querySelector('.ndcInput');
+  input.addEventListener('input', () => formatNDC(input));
+}
 
-  // Auto hyphen formatting with cursor fix
-  input.addEventListener('input', () => {
-    const cursorPos = input.selectionStart;
-    let digits = input.value.replace(/\D/g, '');
-    if (digits.length > 11) digits = digits.slice(0,11);
+// Format NDC to 5-4-2 hyphens while preserving cursor
+function formatNDC(input) {
+  let cursorPos = input.selectionStart;
+  let digits = input.value.replace(/\D/g, '').slice(0, 11);
 
-    if (digits.length > 5 && digits.length <= 9) {
-      digits = digits.slice(0,5) + '-' + digits.slice(5);
-    } else if (digits.length > 9) {
-      digits = digits.slice(0,5) + '-' + digits.slice(5,9) + '-' + digits.slice(9,11);
-    }
+  let formatted = '';
+  for (let i = 0; i < digits.length; i++) {
+    if (i === 5 || i === 9) formatted += '-';
+    formatted += digits[i];
+  }
 
-    input.value = digits;
-    input.selectionStart = input.selectionEnd = cursorPos <= input.value.length ? cursorPos : input.value.length;
-  });
+  let diff = formatted.length - input.value.length;
+  input.value = formatted;
+
+  cursorPos += diff > 0 ? diff : 0;
+  if (cursorPos > formatted.length) cursorPos = formatted.length;
+  input.selectionStart = input.selectionEnd = cursorPos;
 }
 
 // Copy single NDC
 function copyToClipboard(id) {
   const input = document.querySelector(`#row-${id} .ndcInput`);
   const ndc = input.value.trim();
-  const digits = ndc.replace(/\D/g, '');
-  if (digits.length !== 11) {
+  if (ndc.replace(/\D/g,'').length !== 11) {
     alert(`Row ${id}: NDC must be 11 digits!`);
     return;
   }
@@ -146,7 +149,7 @@ function copyNextNDC() {
   const activeInputs = Array.from(inputs).filter(i => i.value.trim() !== '');
   if (activeInputs.length === 0) { alert("No NDCs to copy!"); return; }
 
-  if (index >= activeInputs.length) index = 0; // cycle back to first
+  if (index >= activeInputs.length) index = 0; // cycle back
   const ndc = activeInputs[index].value.trim();
   navigator.clipboard.writeText(ndc).then(() => {
     document.getElementById('status').textContent = `Manually copied ${index+1} of ${activeInputs.length}: ${ndc}`;
