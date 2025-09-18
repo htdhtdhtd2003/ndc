@@ -13,18 +13,27 @@
 </head>
 <body>
 
-<h2>Multiple NDC Input</h2>
+<h2>Send NDC Clipboard </h2>
 <button onclick="addNDCInput()">Add NDC Input</button>
 <br><br>
 
 <label for="intervalSelect">Copy Interval:</label>
 <select id="intervalSelect">
-  <option value="1000">1 second</option>
-  <option value="2000" selected>2 seconds</option>
-  <option value="5000">5 seconds</option>
+  <option value="5">5 seconds</option>
+  <option value="10" selected>10 seconds</option>
+  <option value="15">15 seconds</option>
+  <option value="20">20 seconds</option>
+  <option value="25">25 seconds</option>
+  <option value="30">30 seconds</option>
+  <option value="35">35 seconds</option>
+  <option value="40">40 seconds</option>
+  <option value="45">45 seconds</option>
+  <option value="50">50 seconds</option>
+  <option value="55">55 seconds</option>
+  <option value="60">60 seconds</option>
   <option value="custom">Custom</option>
 </select>
-<input type="number" id="customInterval" placeholder="ms" style="width:100px; display:none;" min="100">
+<input type="number" id="customInterval" placeholder="seconds" style="width:120px; display:none;" min="1">
 
 <br>
 <button onclick="copyAllAtInterval()">Start Copy (F1)</button>
@@ -39,7 +48,7 @@ let ndcCount = 0;
 let copyTimer = null;
 let values = [];
 let index = 0;
-let interval = 2000;
+let interval = 10000; // default 10 seconds
 let paused = false;
 
 // Add new NDC input row
@@ -94,13 +103,14 @@ function copyAllAtInterval() {
   // Get interval from dropdown
   let intervalValue = document.getElementById('intervalSelect').value;
   if (intervalValue === "custom") {
-    interval = parseInt(document.getElementById('customInterval').value, 10);
-    if (isNaN(interval) || interval < 100) {
-      alert("Please enter a valid custom interval (minimum 100 ms)");
+    let customSeconds = parseInt(document.getElementById('customInterval').value, 10);
+    if (isNaN(customSeconds) || customSeconds < 1) {
+      alert("Please enter a valid custom interval (minimum 1 second)");
       return;
     }
+    interval = customSeconds * 1000;
   } else {
-    interval = parseInt(intervalValue, 10);
+    interval = parseInt(intervalValue, 10) * 1000;
   }
 
   index = 0;
@@ -114,7 +124,7 @@ function runCopy() {
   if (paused) return;
 
   if (index >= values.length) {
-    clearInterval(copyTimer);
+    clearTimeout(copyTimer);
     copyTimer = null;
     document.getElementById('status').textContent = `✅ Finished copying all ${values.length} NDCs!`;
     return;
@@ -153,12 +163,23 @@ function stopCopy() {
   document.getElementById('status').textContent = "⏹ Stopped.";
 }
 
+// Clear all NDC inputs and stop copying
+function clearAllNDC() {
+  if (confirm("Are you sure you want to clear all NDC inputs?")) {
+    stopCopy(); // stop any ongoing process
+    document.getElementById('ndcContainer').innerHTML = '';
+    ndcCount = 0;
+    addNDCInput();
+    document.getElementById('status').textContent = "All NDCs cleared.";
+  }
+}
+
 // Show custom interval input
 document.getElementById('intervalSelect').addEventListener('change', function() {
   document.getElementById('customInterval').style.display = this.value === "custom" ? "inline-block" : "none";
 });
 
-// Keyboard shortcuts: F1 = Start, F2 = Toggle Pause/Resume, F3 = Stop
+// Keyboard shortcuts: F1 = Start, F2 = Toggle Pause/Resume, F3 = Stop, F10 = Clear all
 document.addEventListener('keydown', function(e) {
   if (e.key === "F1") {
     e.preventDefault();
@@ -169,6 +190,9 @@ document.addEventListener('keydown', function(e) {
   } else if (e.key === "F3") {
     e.preventDefault();
     stopCopy();
+  } else if (e.key === "F10") {
+    e.preventDefault();
+    clearAllNDC();
   }
 });
 
