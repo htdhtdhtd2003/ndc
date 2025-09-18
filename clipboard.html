@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NDC Input & Clipboard</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  input, button, select { padding: 10px; font-size: 16px; margin: 5px 0; }
+  .ndc-row { margin-bottom: 10px; }
+  #status { margin-top: 15px; font-weight: bold; color: green; }
+</style>
+</head>
+<body>
+
+<h2>Multiple NDC Input</h2>
+<button onclick="addNDCInput()">Add NDC Input</button>
+<br><br>
+
+<label for="intervalSelect">Copy Interval:</label>
+<select id="intervalSelect">
+  <option value="1000">1 second</option>
+  <option value="2000" selected>2 seconds</option>
+  <option value="5000">5 seconds</option>
+  <option value="custom">Custom</option>
+</select>
+<input type="number" id="customInterval" placeholder="ms" style="width:100px; display:none;" min="100">
+
+<br>
+<button onclick="copyAllAtInterval()">Start Copy (F1)</button>
+<button onclick="togglePause()">Pause/Resume (F2)</button>
+<button onclick="stopCopy()">Stop (F3)</button>
+
+<div id="ndcContainer"></div>
+<div id="status"></div>
+
+<script>
+let ndcCount = 0;
+let copyTimer = null;
+let values = [];
+let index = 0;
+let interval = 2000;
+let paused = false;
+
+// Add new NDC input row
+function addNDCInput() {
+  ndcCount++;
+  const container = document.getElementById('ndcContainer');
+
+  const row = document.createElement('div');
+  row.className = 'ndc-row';
+  row.id = 'row-' + ndcCount;
+
+  row.innerHTML = `
+    <input type="text" class="ndcInput" placeholder="12345-6789-01" maxlength="12">
+    <button onclick="copyToClipboard(${ndcCount})">Copy NDC</button>
+  `;
+
+  container.appendChild(row);
+
+  const input = row.querySelector('.ndcInput');
+  input.addEventListener('input', () => {
+    let value = input.value.replace(/[^0-9]/g, '');
+    if (value.length > 5 && value.length <= 9) {
+      value = value.slice(0, 5) + '-' + value.slice(5);
+    } else if (value.length > 9) {
+      value = value.slice(0, 5) + '-' + value.slice(5, 9) + '-' + value.slice(9, 11);
+    }
+    input.value = value;
+  });
+}
+
+// Copy single NDC
+function copyToClipboard(id) {
+  const input = document.querySelector(`#row-${id} .ndcInput`);
+  const ndc = input.value.trim();
+  if (!ndc) { alert("Nothing to copy!"); return; }
+
+  navigator.clipboard.writeText(ndc).then(() => {
+    document.getElementById('status').textContent = "Copied: " + ndc;
+  });
+}
+
+// Start copying all NDCs
+function copyAllAtInterval() {
+  const inputs = document.querySelectorAll('.ndcInput');
+  values = Array.from(inputs).map(input => input.value.trim()).filter(v => v);
+
+  if (values.length === 0) {
+    alert("No NDCs to copy!");
+    return;
+  }
+
+  // Get interval from dropdown
+  let intervalValue = document.getElementById('intervalSelect').value;
+  if (intervalValue === "custom") {
+    interval = parseInt(document.getElementById('customInterval').value, 10);
+    if (isNaN(interval) || interval < 100) {
+      alert("Please enter a valid custom interval (minimum 100 ms)");
+      return;
+    }
+  } else {
+    interval = parseInt(intervalValue, 10);
+  }
+
+  index = 0;
+  paused = false;
+  document.getElementById('status').textContent = `Starting... (0 of ${values.length})`;
+  runCopy();
+}
+
+// Function that performs the copy loop
+function runCopy() {
+  if (paused) return;
+
+  if (index >= values.length) {
+    clearInterval(copyTimer);
+    copyTimer = null;
+    document.getElementById('status').textContent = `✅ Finished copying all ${values.length} NDCs!`;
+    return;
+  }
+
+  const ndc = values[index];
+  navigator.clipboard.writeText(ndc).then(() => {
+    document.getElementById('status').textContent = `Copied ${index + 1} of ${values.length}: ${ndc}`;
+  });
+  index++;
+
+  copyTimer = setTimeout(runCopy, interval);
+}
+
+// Toggle pause/resume
+function togglePause() {
+  if (paused) {
+    paused = false;
+    document.getElementById('status').textContent = "▶️ Resuming...";
+    runCopy();
+  } else {
+    if (copyTimer) {
+      clearTimeout(copyTimer);
+      copyTimer = null;
+    }
+    paused = true;
+    document.getElementById('status').textContent = "⏸ Paused at " + index + " of " + values.length;
+  }
+}
+
+// Stop the process completely
+function stopCopy() {
+  clearTimeout(copyTimer);
+  copyTimer = null;
+  paused = false;
+  document.getElementById('status').textContent = "⏹ Stopped.";
+}
+
+// Show custom interval input
+document.getElementById('intervalSelect').addEventListener('change', function() {
+  document.getElementById('customInterval').style.display = this.value === "custom" ? "inline-block" : "none";
+});
+
+// Keyboard shortcuts: F1 = Start, F2 = Toggle Pause/Resume, F3 = Stop
+document.addEventListener('keydown', function(e) {
+  if (e.key === "F1") {
+    e.preventDefault();
+    copyAllAtInterval();
+  } else if (e.key === "F2") {
+    e.preventDefault();
+    togglePause();
+  } else if (e.key === "F3") {
+    e.preventDefault();
+    stopCopy();
+  }
+});
+
+// Start with one input by default
+addNDCInput();
+</script>
+
+</body>
+</html>
