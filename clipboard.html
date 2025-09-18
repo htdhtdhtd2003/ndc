@@ -13,12 +13,12 @@
 </head>
 <body>
 
-<h2>Multiple 11-Digit NDC to QR Codes</h2>
+<h2>11-Digit NDC to QR Codes</h2>
 <button onclick="addNDCInput()">Add NDC Input</button>
 
 <div id="ndcContainer"></div>
 
-<!-- QRCode.js library -->
+<!-- Include QRCode.js library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 let ndcCount = 0;
@@ -35,19 +35,20 @@ function addNDCInput() {
     <input type="text" class="ndcInput" placeholder="12345-6789-01" maxlength="12">
     <button onclick="generateQRCode(${ndcCount})">Generate QR</button>
     <button onclick="copyToClipboard(${ndcCount})">Copy NDC</button>
-    <button onclick="pasteFromClipboard(${ndcCount})">Paste NDC</button>
     <div class="qrcode-container" id="qrcode-${ndcCount}"></div>
   `;
 
   container.appendChild(row);
 
   const input = row.querySelector('.ndcInput');
-
-  // Auto hyphen formatting: 5-4-2 for 11-digit NDC
   input.addEventListener('input', () => {
-    let value = input.value.replace(/\D/g, ''); // only digits
+    // Keep only digits
+    let value = input.value.replace(/\D/g, '');
+
+    // Limit to 11 digits
     if (value.length > 11) value = value.slice(0,11);
 
+    // Automatically insert hyphens: 5-4-2
     if (value.length > 5 && value.length <= 9) {
       value = value.slice(0,5) + '-' + value.slice(5);
     } else if (value.length > 9) {
@@ -61,10 +62,11 @@ function addNDCInput() {
 function generateQRCode(id) {
   const input = document.querySelector(`#row-${id} .ndcInput`);
   const ndc = input.value.trim();
-  const digits = ndc.replace(/\D/g, '');
 
+  // Only allow exactly 11 digits (ignoring hyphens)
+  const digits = ndc.replace(/\D/g, '');
   if (digits.length !== 11) {
-    alert(`Row ${id}: Please enter a valid 11-digit NDC!`);
+    alert("Please enter a valid 11-digit NDC!");
     return;
   }
 
@@ -84,36 +86,16 @@ function copyToClipboard(id) {
   const input = document.querySelector(`#row-${id} .ndcInput`);
   const ndc = input.value.trim();
   const digits = ndc.replace(/\D/g, '');
-  if (digits.length !== 11) {
-    alert(`Row ${id}: Cannot copy — NDC must be 11 digits!`);
-    return;
+  if (digits.length !== 11) { 
+    alert("Cannot copy: NDC must be 11 digits!");
+    return; 
   }
 
   navigator.clipboard.writeText(ndc).then(() => {
-    alert(`Row ${id}: NDC copied to clipboard!`);
+    alert("NDC copied to clipboard!");
   }).catch(err => {
-    alert(`Row ${id}: Failed to copy — ${err}`);
+    alert("Failed to copy: " + err);
   });
-}
-
-async function pasteFromClipboard(id) {
-  const input = document.querySelector(`#row-${id} .ndcInput`);
-  try {
-    const text = await navigator.clipboard.readText();
-    const digitsOnly = text.replace(/\D/g, '');
-    if (digitsOnly.length !== 11) {
-      alert(`Row ${id}: Clipboard content is not 11-digit NDC!`);
-      return;
-    }
-
-    // Format hyphens automatically
-    const formatted = digitsOnly.slice(0,5) + '-' + digitsOnly.slice(5,9) + '-' + digitsOnly.slice(9,11);
-    input.value = formatted;
-
-    alert(`Row ${id}: NDC pasted from clipboard!`);
-  } catch (err) {
-    alert(`Row ${id}: Failed to read clipboard — ${err}`);
-  }
 }
 
 // Start with one input by default
