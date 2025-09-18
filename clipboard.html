@@ -3,55 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NDC Input & Clipboard</title>
+<title>11-Digit NDC to QR Codes</title>
 <style>
   body { font-family: Arial, sans-serif; padding: 20px; }
-  input, button, select { padding: 10px; font-size: 16px; margin: 5px 0; }
-  .ndc-row { margin-bottom: 10px; }
-  #status { margin-top: 15px; font-weight: bold; color: green; }
+  input, button { padding: 10px; font-size: 16px; margin: 5px 0; }
+  .ndc-row { margin-bottom: 20px; }
+  .qrcode-container { margin-top: 10px; }
 </style>
 </head>
 <body>
 
-<h2>Send NDC Clipboard </h2>
+<h2>Multiple 11-Digit NDC to QR Codes</h2>
 <button onclick="addNDCInput()">Add NDC Input</button>
-<br><br>
-
-<label for="intervalSelect">Copy Interval:</label>
-<select id="intervalSelect">
-  <option value="5">5 seconds</option>
-  <option value="10" selected>10 seconds</option>
-  <option value="15">15 seconds</option>
-  <option value="20">20 seconds</option>
-  <option value="25">25 seconds</option>
-  <option value="30">30 seconds</option>
-  <option value="35">35 seconds</option>
-  <option value="40">40 seconds</option>
-  <option value="45">45 seconds</option>
-  <option value="50">50 seconds</option>
-  <option value="55">55 seconds</option>
-  <option value="60">60 seconds</option>
-  <option value="custom">Custom</option>
-</select>
-<input type="number" id="customInterval" placeholder="seconds" style="width:120px; display:none;" min="1">
-
-<br>
-<button onclick="copyAllAtInterval()">Start Copy (F1)</button>
-<button onclick="togglePause()">Pause/Resume (F2)</button>
-<button onclick="stopCopy()">Stop (F3)</button>
 
 <div id="ndcContainer"></div>
-<div id="status"></div>
 
+<!-- QRCode.js library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 let ndcCount = 0;
-let copyTimer = null;
-let values = [];
-let index = 0;
-let interval = 10000; // default 10 seconds
-let paused = false;
 
-// Add new NDC input row
 function addNDCInput() {
   ndcCount++;
   const container = document.getElementById('ndcContainer');
@@ -62,139 +33,88 @@ function addNDCInput() {
 
   row.innerHTML = `
     <input type="text" class="ndcInput" placeholder="12345-6789-01" maxlength="12">
+    <button onclick="generateQRCode(${ndcCount})">Generate QR</button>
     <button onclick="copyToClipboard(${ndcCount})">Copy NDC</button>
+    <button onclick="pasteFromClipboard(${ndcCount})">Paste NDC</button>
+    <div class="qrcode-container" id="qrcode-${ndcCount}"></div>
   `;
 
   container.appendChild(row);
 
   const input = row.querySelector('.ndcInput');
+
+  // Auto hyphen formatting: 5-4-2 for 11-digit NDC
   input.addEventListener('input', () => {
-    let value = input.value.replace(/[^0-9]/g, '');
+    let value = input.value.replace(/\D/g, ''); // only digits
+    if (value.length > 11) value = value.slice(0,11);
+
     if (value.length > 5 && value.length <= 9) {
-      value = value.slice(0, 5) + '-' + value.slice(5);
+      value = value.slice(0,5) + '-' + value.slice(5);
     } else if (value.length > 9) {
-      value = value.slice(0, 5) + '-' + value.slice(5, 9) + '-' + value.slice(9, 11);
+      value = value.slice(0,5) + '-' + value.slice(5,9) + '-' + value.slice(9,11);
     }
+
     input.value = value;
   });
 }
 
-// Copy single NDC
+function generateQRCode(id) {
+  const input = document.querySelector(`#row-${id} .ndcInput`);
+  const ndc = input.value.trim();
+  const digits = ndc.replace(/\D/g, '');
+
+  if (digits.length !== 11) {
+    alert(`Row ${id}: Please enter a valid 11-digit NDC!`);
+    return;
+  }
+
+  const qrcodeDiv = document.getElementById('qrcode-' + id);
+  qrcodeDiv.innerHTML = "";
+  new QRCode(qrcodeDiv, {
+    text: ndc,
+    width: 200,
+    height: 200,
+    colorDark: "#000000",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.H
+  });
+}
+
 function copyToClipboard(id) {
   const input = document.querySelector(`#row-${id} .ndcInput`);
   const ndc = input.value.trim();
-  if (!ndc) { alert("Nothing to copy!"); return; }
-
-  navigator.clipboard.writeText(ndc).then(() => {
-    document.getElementById('status').textContent = "Copied: " + ndc;
-  });
-}
-
-// Start copying all NDCs
-function copyAllAtInterval() {
-  const inputs = document.querySelectorAll('.ndcInput');
-  values = Array.from(inputs).map(input => input.value.trim()).filter(v => v);
-
-  if (values.length === 0) {
-    alert("No NDCs to copy!");
+  const digits = ndc.replace(/\D/g, '');
+  if (digits.length !== 11) {
+    alert(`Row ${id}: Cannot copy — NDC must be 11 digits!`);
     return;
   }
 
-  // Get interval from dropdown
-  let intervalValue = document.getElementById('intervalSelect').value;
-  if (intervalValue === "custom") {
-    let customSeconds = parseInt(document.getElementById('customInterval').value, 10);
-    if (isNaN(customSeconds) || customSeconds < 1) {
-      alert("Please enter a valid custom interval (minimum 1 second)");
+  navigator.clipboard.writeText(ndc).then(() => {
+    alert(`Row ${id}: NDC copied to clipboard!`);
+  }).catch(err => {
+    alert(`Row ${id}: Failed to copy — ${err}`);
+  });
+}
+
+async function pasteFromClipboard(id) {
+  const input = document.querySelector(`#row-${id} .ndcInput`);
+  try {
+    const text = await navigator.clipboard.readText();
+    const digitsOnly = text.replace(/\D/g, '');
+    if (digitsOnly.length !== 11) {
+      alert(`Row ${id}: Clipboard content is not 11-digit NDC!`);
       return;
     }
-    interval = customSeconds * 1000;
-  } else {
-    interval = parseInt(intervalValue, 10) * 1000;
-  }
 
-  index = 0;
-  paused = false;
-  document.getElementById('status').textContent = `Starting... (0 of ${values.length})`;
-  runCopy();
-}
+    // Format hyphens automatically
+    const formatted = digitsOnly.slice(0,5) + '-' + digitsOnly.slice(5,9) + '-' + digitsOnly.slice(9,11);
+    input.value = formatted;
 
-// Function that performs the copy loop
-function runCopy() {
-  if (paused) return;
-
-  if (index >= values.length) {
-    clearTimeout(copyTimer);
-    copyTimer = null;
-    document.getElementById('status').textContent = `✅ Finished copying all ${values.length} NDCs!`;
-    return;
-  }
-
-  const ndc = values[index];
-  navigator.clipboard.writeText(ndc).then(() => {
-    document.getElementById('status').textContent = `Copied ${index + 1} of ${values.length}: ${ndc}`;
-  });
-  index++;
-
-  copyTimer = setTimeout(runCopy, interval);
-}
-
-// Toggle pause/resume
-function togglePause() {
-  if (paused) {
-    paused = false;
-    document.getElementById('status').textContent = "▶️ Resuming...";
-    runCopy();
-  } else {
-    if (copyTimer) {
-      clearTimeout(copyTimer);
-      copyTimer = null;
-    }
-    paused = true;
-    document.getElementById('status').textContent = "⏸ Paused at " + index + " of " + values.length;
+    alert(`Row ${id}: NDC pasted from clipboard!`);
+  } catch (err) {
+    alert(`Row ${id}: Failed to read clipboard — ${err}`);
   }
 }
-
-// Stop the process completely
-function stopCopy() {
-  clearTimeout(copyTimer);
-  copyTimer = null;
-  paused = false;
-  document.getElementById('status').textContent = "⏹ Stopped.";
-}
-
-// Clear all NDC inputs and stop copying
-function clearAllNDC() {
-  if (confirm("Are you sure you want to clear all NDC inputs?")) {
-    stopCopy(); // stop any ongoing process
-    document.getElementById('ndcContainer').innerHTML = '';
-    ndcCount = 0;
-    addNDCInput();
-    document.getElementById('status').textContent = "All NDCs cleared.";
-  }
-}
-
-// Show custom interval input
-document.getElementById('intervalSelect').addEventListener('change', function() {
-  document.getElementById('customInterval').style.display = this.value === "custom" ? "inline-block" : "none";
-});
-
-// Keyboard shortcuts: F1 = Start, F2 = Toggle Pause/Resume, F3 = Stop, F10 = Clear all
-document.addEventListener('keydown', function(e) {
-  if (e.key === "F1") {
-    e.preventDefault();
-    copyAllAtInterval();
-  } else if (e.key === "F2") {
-    e.preventDefault();
-    togglePause();
-  } else if (e.key === "F3") {
-    e.preventDefault();
-    stopCopy();
-  } else if (e.key === "F10") {
-    e.preventDefault();
-    clearAllNDC();
-  }
-});
 
 // Start with one input by default
 addNDCInput();
