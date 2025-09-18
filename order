@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multiple NDC to QR Codes</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  input, button { padding: 10px; font-size: 16px; margin: 5px 0; }
+  .ndc-row { margin-bottom: 20px; }
+  .qrcode-container { margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h2>Multiple NDC to QR Codes</h2>
+<button onclick="addNDCInput()">Add NDC Input</button>
+
+<div id="ndcContainer"></div>
+
+<!-- Include QRCode.js library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+let ndcCount = 0;
+
+function addNDCInput() {
+  ndcCount++;
+  const container = document.getElementById('ndcContainer');
+
+  // Create new row
+  const row = document.createElement('div');
+  row.className = 'ndc-row';
+  row.id = 'row-' + ndcCount;
+
+  row.innerHTML = `
+    <input type="text" class="ndcInput" placeholder="12345-6789-01" maxlength="12">
+    <button onclick="generateQRCode(${ndcCount})">Generate QR</button>
+    <button onclick="copyToClipboard(${ndcCount})">Copy NDC</button>
+    <div class="qrcode-container" id="qrcode-${ndcCount}"></div>
+  `;
+
+  container.appendChild(row);
+
+  // Add hyphen formatting
+  const input = row.querySelector('.ndcInput');
+  input.addEventListener('input', () => {
+    let value = input.value.replace(/[^0-9]/g, '');
+    if (value.length > 5 && value.length <= 9) {
+      value = value.slice(0, 5) + '-' + value.slice(5);
+    } else if (value.length > 9) {
+      value = value.slice(0, 5) + '-' + value.slice(5, 9) + '-' + value.slice(9, 11);
+    }
+    input.value = value;
+  });
+}
+
+function generateQRCode(id) {
+  const input = document.querySelector(`#row-${id} .ndcInput`);
+  const qrcodeDiv = document.getElementById('qrcode-' + id);
+  const ndc = input.value.trim();
+  if (!ndc) { alert("Please enter an NDC!"); return; }
+
+  qrcodeDiv.innerHTML = "";
+  new QRCode(qrcodeDiv, {
+    text: ndc,
+    width: 200,
+    height: 200,
+    colorDark: "#000000",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.H
+  });
+}
+
+function copyToClipboard(id) {
+  const input = document.querySelector(`#row-${id} .ndcInput`);
+  const ndc = input.value.trim();
+  if (!ndc) { alert("Nothing to copy!"); return; }
+
+  navigator.clipboard.writeText(ndc).then(() => {
+    alert("NDC copied to clipboard!");
+  }).catch(err => {
+    alert("Failed to copy: " + err);
+  });
+}
+
+// Start with one input by default
+addNDCInput();
+</script>
+
+</body>
+</html>
