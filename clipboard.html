@@ -61,7 +61,7 @@ function addNDCInput() {
   row.id = 'row-' + ndcCount;
 
   row.innerHTML = `
-    <input type="text" class="ndcInput" placeholder="12345-6789-01" maxlength="12">
+    <input type="text" class="ndcInput" placeholder="12345-6789-01" maxlength="13">
     <button onclick="copyToClipboard(${ndcCount})">Copy NDC</button>
   `;
 
@@ -69,12 +69,13 @@ function addNDCInput() {
 
   const input = row.querySelector('.ndcInput');
   input.addEventListener('input', () => formatNDC(input));
+  input.addEventListener('blur', () => validateNDC(input));
 }
 
-// Format NDC to 5-4-2 hyphens while preserving cursor
+// Format NDC as 5-4-2 (hyphens after 5th and 9th digits only)
 function formatNDC(input) {
   let cursorPos = input.selectionStart;
-  let digits = input.value.replace(/\D/g, '').slice(0, 11);
+  let digits = input.value.replace(/\D/g, '').slice(0, 11); // limit to 11 digits
 
   let formatted = '';
   for (let i = 0; i < digits.length; i++) {
@@ -88,6 +89,15 @@ function formatNDC(input) {
   cursorPos += diff > 0 ? diff : 0;
   if (cursorPos > formatted.length) cursorPos = formatted.length;
   input.selectionStart = input.selectionEnd = cursorPos;
+}
+
+// Validate NDC length on leaving input
+function validateNDC(input) {
+  let digits = input.value.replace(/\D/g, '');
+  if (digits.length !== 11 && digits.length !== 0) {
+    alert("⚠️ NDC must contain exactly 11 digits.");
+    input.focus();
+  }
 }
 
 // Copy single NDC
