@@ -64,7 +64,7 @@ function addNDCInput() {
   row.id = 'row-' + ndcCount;
 
   row.innerHTML = `
-    <input type="text" class="ndcInput" placeholder="12345-6789-01" maxlength="13">
+    <input type="text" class="ndcInput" placeholder="12345-6789-01">
     <button onclick="copyToClipboard(${ndcCount})">Copy NDC</button>
   `;
 
@@ -80,7 +80,7 @@ function addNDCInput() {
 // Format NDC as 5-4-2 (hyphens after 5th & 9th digits)
 function formatNDC(input) {
   let cursorPos = input.selectionStart;
-  let digits = input.value.replace(/\D/g, '').slice(0, 11);
+  let digits = input.value.replace(/\D/g, '').slice(0, 11); // only 11 digits allowed
 
   let formatted = '';
   for (let i = 0; i < digits.length; i++) {
@@ -88,10 +88,8 @@ function formatNDC(input) {
     formatted += digits[i];
   }
 
-  let diff = formatted.length - input.value.length;
   input.value = formatted;
 
-  cursorPos += diff > 0 ? diff : 0;
   if (cursorPos > formatted.length) cursorPos = formatted.length;
   input.selectionStart = input.selectionEnd = cursorPos;
 }
