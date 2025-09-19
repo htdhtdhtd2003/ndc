@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPH/Tech Manager</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  label { display: block; margin: 5px 0 2px; }
+  input, select, button { margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+  th { background-color: #f4f4f4; cursor: pointer; }
+  .red { background-color: #f88; }
+  .yellow { background-color: #ffeb99; }
+  .green { background-color: #8f8; }
+</style>
+</head>
+<body>
+
+<h2>RPH / TECH Manager</h2>
+
+<label for="role">Select Role:</label>
+<select id="role">
+  <option value="">--Select--</option>
+  <option value="RPH">RPH</option>
+  <option value="TECH">TECH</option>
+</select>
+
+<div id="formContainer"></div>
+
+<button onclick="addEntry()">Add Entry</button>
+<button onclick="exportList()">Export List</button>
+<input type="file" id="importFile" onchange="importList(event)">
+<button onclick="clearAll()">Clear All</button>
+
+<label for="filterRole">Filter by Role:</label>
+<select id="filterRole" onchange="renderTable()">
+  <option value="ALL">All</option>
+  <option value="RPH">RPH</option>
+  <option value="TECH">TECH</option>
+</select>
+
+<table id="entryTable">
+  <thead>
+    <tr>
+      <th onclick="sortTable('role')">Role</th>
+      <th onclick="sortTable('name')">Name</th>
+      <th onclick="sortTable('licenseDate')">License Expiration</th>
+      <th onclick="sortTable('cprDate')">CPR Expiration</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+let entries = JSON.parse(localStorage.getItem('entries')) || [];
+let editIndex = null;
+let sortConfig = { key: null, asc: true };
+
+document.getElementById('role').addEventListener('change', renderForm);
+
+function renderForm() {
+    const role = document.getElementById('role').value;
+    const container = document.getElementById('formContainer');
+    container.innerHTML = '';
+    if(!role) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    container.innerHTML += `<label>Name:</label><input type="text" id="name">`;
+    container.innerHTML += `<label>License Expiration:</label><input type="date" id="licenseDate" min="${todayStr}">`;
+    if(role === 'RPH') {
+        container.innerHTML += `<label>CPR Expiration:</label><input type="date" id="cprDate" min="${todayStr}">`;
+    }
+}
+
+function addEntry() {
+    const role = document.getElementById('role').value;
+    const name = document.getElementById('name')?.value;
+    const licenseDate = document.getElementById('licenseDate')?.value;
+    const cprDate = document.getElementById('cprDate')?.value || '';
+
+    if(!role || !name || !licenseDate || (role === 'RPH' && !cprDate)) {
+        alert('Please fill all required fields.');
+        return;
+    }
+
+    const entry = { role, name, licenseDate, cprDate };
+    if(editIndex !== null) {
+        entries[editIndex] = entry;
+        editIndex = null;
+    } else {
+        entries.push(entry);
+    }
+
+    saveAndRender();
+}
+
+function renderTable() {
+    const tbody = document.querySelector('#entryTable tbody');
+    tbody.innerHTML = '';
+    const today = new Date();
+    const oneMonth = 30 * 24 * 60 * 60 * 1000;
+    const filter = document.getElementById('filterRole').value;
+
+    let displayEntries = [...entries];
+    if(filter !== 'ALL') displayEntries = displayEntries.filter(e => e.role === filter);
+
+    if(sortConfig.key) {
+        displayEntries.sort((a, b) => {
+            let valA = a[sortConfig.key] || '';
+            let valB = b[sortConfig.key] || '';
+            if(sortConfig.key.includes('Date')) {
+                valA = valA || '9999-12-31';
+                valB = valB || '9999-12-31';
+            }
+            return sortConfig.asc ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+        });
+    }
+
+    displayEntries.forEach((e, index) => {
+        const licenseDiff = new Date(e.licenseDate) - today;
+        const cprDiff = e.cprDate ? new Date(e.cprDate) - today : null;
+
+        let licenseClass = '';
+        let cprClass = '';
+
+        if(licenseDiff < 0) licenseClass = 'red';
+        else if(licenseDiff <= oneMonth) licenseClass = 'yellow';
+        else licenseClass = 'green';
+
+        if(cprDiff !== null) {
+            if(cprDiff < 0) cprClass = 'red';
+            else if(cprDiff <= oneMonth) cprClass = 'yellow';
+            else cprClass = 'green';
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${e.role}</td>
+            <td>${e.name} <button onclick="copyToClipboard('${e.name}')">Copy</button></td>
+            <td class="${licenseClass}">${e.licenseDate} <button onclick="copyToClipboard('${e.licenseDate}')">Copy</button></td>
+            <td class="${e.cprDate ? cprClass : ''}">${e.cprDate} ${e.cprDate ? `<button onclick="copyToClipboard('${e.cprDate}')">Copy</button>` : ''}</td>
+            <td>
+                <button onclick="editEntry(${entries.indexOf(e)})">Edit</button>
+                <button onclick="deleteEntry(${entries.indexOf(e)})">Delete</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert(`Copied: ${text}`);
+    });
+}
+
+function sortTable(key) {
+    if(sortConfig.key === key) sortConfig.asc = !sortConfig.asc;
+    else { sortConfig.key = key; sortConfig.asc = true; }
+    renderTable();
+}
+
+function editEntry(index) {
+    const e = entries[index];
+    document.getElementById('role').value = e.role;
+    renderForm();
+    document.getElementById('name').value = e.name;
+    document.getElementById('licenseDate').value = e.licenseDate;
+    if(e.role === 'RPH') document.getElementById('cprDate').value = e.cprDate;
+    editIndex = index;
+}
+
+function deleteEntry(index) {
+    if(confirm('Are you sure you want to delete this entry?')) {
+        entries.splice(index, 1);
+        saveAndRender();
+    }
+}
+
+function saveAndRender() {
+    localStorage.setItem('entries', JSON.stringify(entries));
+    renderTable();
+    clearForm();
+}
+
+function clearForm() {
+    document.getElementById('role').value = '';
+    document.getElementById('formContainer').innerHTML = '';
+}
+
+function exportList() {
+    const dataStr = JSON.stringify(entries, null, 2);
+    const blob = new Blob([dataStr], {type: "text/plain"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rph_tech_list.txt';
+    a.click();
+}
+
+function importList(event) {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            entries = JSON.parse(e.target.result);
+            localStorage.setItem('entries', JSON.stringify(entries));
+            renderTable();
+        } catch(err) {
+            alert('Invalid file format');
+        }
+    };
+    reader.readAsText(file);
+}
+
+function clearAll() {
+    if(confirm('Are you sure you want to clear all entries?')) {
+        entries = [];
+        localStorage.removeItem('entries');
+        renderTable();
+    }
+}
+
+// Initial render
+renderTable();
+</script>
+
+</body>
+</html>
