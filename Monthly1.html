@@ -20,8 +20,9 @@
 </select>
 <input type="text" id="name" placeholder="Name">
 <input type="date" id="licenseDate" placeholder="License Exp">
-<input type="date" id="cprDate" placeholder="CPR Exp (RPH only)">
+<input type="date" id="cprDate" placeholder="CPR Exp">
 <button onclick="addEntry()">Add</button>
+<button onclick="updateEntry()" style="display:none;" id="updateBtn">Update</button>
 
 <hr>
 
@@ -45,6 +46,7 @@
 
 <script>
 let entries = [];
+let editIndex = null;
 const repoOwner = "htdhtdhtd2003";
 const repoName = "ndc";
 const filePath = "rph_tech_list.txt";
@@ -61,10 +63,41 @@ function addEntry(){
   const role = document.getElementById("role").value;
   const name = document.getElementById("name").value.trim();
   const licenseDate = document.getElementById("licenseDate").value;
-  const cprDate = role==="RPH"?document.getElementById("cprDate").value:"";
-  if(!name || !licenseDate) return alert("Name and License Exp required");
+  const cprDate = document.getElementById("cprDate").value;
+  if(!name || !licenseDate || !cprDate) return alert("All fields are required");
   entries.push({role,name,licenseDate,cprDate});
+  clearInputs();
   renderTable();
+}
+
+function editEntry(index){
+  const e = entries[index];
+  document.getElementById("role").value = e.role;
+  document.getElementById("name").value = e.name;
+  document.getElementById("licenseDate").value = e.licenseDate;
+  document.getElementById("cprDate").value = e.cprDate || "";
+  editIndex = index;
+  document.getElementById("updateBtn").style.display = "inline";
+}
+
+function updateEntry(){
+  if(editIndex===null) return;
+  const role = document.getElementById("role").value;
+  const name = document.getElementById("name").value.trim();
+  const licenseDate = document.getElementById("licenseDate").value;
+  const cprDate = document.getElementById("cprDate").value;
+  if(!name || !licenseDate || !cprDate) return alert("All fields are required");
+  entries[editIndex] = {role,name,licenseDate,cprDate};
+  editIndex = null;
+  document.getElementById("updateBtn").style.display = "none";
+  clearInputs();
+  renderTable();
+}
+
+function clearInputs(){
+  document.getElementById("name").value="";
+  document.getElementById("licenseDate").value="";
+  document.getElementById("cprDate").value="";
 }
 
 function renderTable(){
@@ -87,6 +120,7 @@ function renderTable(){
       <td class="${cprClass}">${e.cprDate?formatDate(e.cprDate):""} ${e.cprDate?`<button onclick="copyToClipboard('${formatDate(e.cprDate)}')">Copy</button>`:""}</td>
       <td>
         <button onclick="copyRowAll(${idx})">Copy All</button>
+        <button onclick="editEntry(${idx})">Edit</button>
         <button onclick="deleteEntry(${idx})">Delete</button>
       </td>`;
     tbody.appendChild(tr);
@@ -149,7 +183,6 @@ function importFromFile(event){
 // GitHub Load
 async function loadFromGitHub(){
   try{
-    // clear table before load
     entries = [];
     renderTable();
     const url = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/${filePath}`;
