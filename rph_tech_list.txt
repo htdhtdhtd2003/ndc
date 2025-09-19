@@ -10,5 +10,11 @@
     "name": "Jimmy",
     "licenseDate": "2025-09-27",
     "cprDate": "2025-09-30"
+  },
+  {
+    "role": "TECH",
+    "name": "Johnnie",
+    "licenseDate": "2026-02-20",
+    "cprDate": ""
   }
 ]
