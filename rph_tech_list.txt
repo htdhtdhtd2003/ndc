@@ -1,14 +1,56 @@
 [
   {
     "role": "RPH",
-    "name": "Hung",
-    "licenseDate": "2025-09-19",
-    "cprDate": "2025-10-31"
+    "name": "Lawrence Quach",
+    "licenseDate": "2025-12-31",
+    "cprDate": ""
   },
   {
     "role": "RPH",
-    "name": "Jimmy",
-    "licenseDate": "2025-09-27",
-    "cprDate": "2025-09-30"
+    "name": "Patricia Santos",
+    "licenseDate": "2027-07-31",
+    "cprDate": ""
+  },
+  {
+    "role": "RPH",
+    "name": "Leslie Trinh",
+    "licenseDate": "2025-10-31",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Mikiah Dawn Gates",
+    "licenseDate": "2027-07-31",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Meagan Greeley",
+    "licenseDate": "2025-09-30",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Rylee Grace Hausman",
+    "licenseDate": "2027-06-30",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Rochelle Lynn Higbie",
+    "licenseDate": "2025-10-31",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Michael Arthur Leung",
+    "licenseDate": "2026-09-30",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Manuel Salvador Macedo Mendoza",
+    "licenseDate": "2026-01-31",
+    "cprDate": ""
   }
 ]
