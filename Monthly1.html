@@ -2,42 +2,50 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>RPH/Tech List Manager</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPH & TECH List</title>
 <style>
-  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-  th, td { border: 1px solid #aaa; padding: 5px; text-align: left; }
-  .red { background-color: #f8b3b3; }
-  .yellow { background-color: #fff3b0; }
-  .green { background-color: #b3f8b3; }
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+  .expired { background-color: #f8d7da; }    /* red */
+  .warning { background-color: #fff3cd; }    /* yellow */
+  .valid { background-color: #d4edda; }      /* green */
+  button { margin: 2px; }
 </style>
 </head>
 <body>
-<h2>RPH/Tech List Manager</h2>
+<h2>RPH & TECH List</h2>
 
-<select id="role">
-  <option value="RPH">RPH</option>
-  <option value="TECH">TECH</option>
-</select>
-<input type="text" id="name" placeholder="Name">
-<input type="date" id="licenseDate" placeholder="License Exp">
-<input type="date" id="cprDate" placeholder="CPR Exp">
-<button onclick="addEntry()">Add</button>
-<button onclick="updateEntry()" style="display:none;" id="updateBtn">Update</button>
+<div id="formSection">
+  <label>
+    Role:
+    <select id="role">
+      <option value="RPH">RPH</option>
+      <option value="TECH">TECH</option>
+    </select>
+  </label>
+  <label>Name: <input type="text" id="name"></label>
+  <label>License Expiration: <input type="date" id="licenseDate"></label>
+  <label>CPR Expiration: <input type="date" id="cprDate"></label>
+  <button onclick="addOrUpdateEntry()">Save</button>
+</div>
 
-<hr>
+<div style="margin-top:10px;">
+  <button onclick="exportList()">Export List</button>
+  <input type="file" id="fileInput" accept=".txt" onchange="importListFromFile(event)">
+  <button onclick="loadFromGitHub()">Load from GitHub</button>
+  <input type="password" id="ghToken" placeholder="GitHub Token">
+  <button onclick="saveToGitHub()">Save to GitHub</button>
+</div>
 
-<button onclick="saveToGitHub()">Save to GitHub</button>
-<button onclick="loadFromGitHub()">Load from GitHub</button>
-<input type="file" id="fileInput" accept=".txt" onchange="importFromFile(event)">
-<button onclick="exportToFile()">Export File</button>
-
-<table id="entryTable">
+<table id="dataTable">
   <thead>
     <tr>
       <th>Role</th>
       <th>Name</th>
-      <th>License Exp</th>
-      <th>CPR Exp</th>
+      <th>License Expiration</th>
+      <th>CPR Expiration</th>
       <th>Actions</th>
     </tr>
   </thead>
@@ -46,173 +54,198 @@
 
 <script>
 let entries = [];
-let editIndex = null;
-const repoOwner = "htdhtdhtd2003";
-const repoName = "ndc";
-const filePath = "rph_tech_list.txt";
-let githubToken = ""; // set your token here if needed
+let editingIndex = null;
+const githubUser = "htdhtdhtd2003";
+const githubRepo = "ndc";
+const githubPath = "rph_tech_list.txt";
 
-function formatDate(d){
-  if(!d) return "";
-  const dt = new Date(d);
-  if(isNaN(dt)) return "";
-  return dt.toLocaleDateString("en-US", {year:"numeric", month:"2-digit", day:"2-digit"});
+function highlightDate(dateStr) {
+  if (!dateStr) return '';
+  const today = new Date();
+  const date = new Date(dateStr);
+  const diffDays = (date - today) / (1000*60*60*24);
+  if (date < today) return "expired";
+  if (diffDays <= 30) return "warning";
+  return "valid";
 }
 
-function addEntry(){
+function renderTable() {
+  const tbody = document.querySelector("#dataTable tbody");
+  tbody.innerHTML = "";
+  entries.forEach((e, i) => {
+    const tr = document.createElement("tr");
+
+    const licenseClass = highlightDate(e.licenseDate);
+    const cprClass = e.cprDate ? highlightDate(e.cprDate) : "";
+
+    tr.innerHTML = `
+      <td>${e.role}</td>
+      <td>${e.name}</td>
+      <td class="${licenseClass}">${e.licenseDate || ""}</td>
+      <td class="${cprClass}">${e.cprDate || ""}</td>
+      <td>
+        <button onclick="copyField('${e.name}')">Copy Name</button>
+        <button onclick="copyField('${e.licenseDate}')">Copy License</button>
+        ${e.cprDate ? `<button onclick="copyField('${e.cprDate}')">Copy CPR</button>` : ""}
+        <button onclick="copyAllRow(${i})">Copy All</button>
+        <button onclick="editEntry(${i})">Edit</button>
+        <button onclick="deleteEntry(${i})">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function copyField(text) {
+  if (!text) return;
+  navigator.clipboard.writeText(formatDate(text));
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+// Copy all non-empty fields with 5s delay
+async function copyAllRow(index) {
+  const e = entries[index];
+  const items = [e.name, e.licenseDate, e.cprDate].filter(x => x && x.trim() !== "");
+  for (let i=0; i<items.length; i++) {
+    await navigator.clipboard.writeText(formatDate(items[i]));
+    if (i < items.length-1) await new Promise(r => setTimeout(r, 5000));
+  }
+}
+
+function addOrUpdateEntry() {
   const role = document.getElementById("role").value;
   const name = document.getElementById("name").value.trim();
   const licenseDate = document.getElementById("licenseDate").value;
   const cprDate = document.getElementById("cprDate").value;
-  if(!name || !licenseDate || !cprDate) return alert("All fields are required");
-  entries.push({role,name,licenseDate,cprDate});
-  clearInputs();
+
+  if (!name || !licenseDate) {
+    alert("Name and License Expiration are required.");
+    return;
+  }
+  if (role === "RPH" && !cprDate) {
+    alert("CPR Expiration is required for RPH.");
+    return;
+  }
+
+  const entry = { role, name, licenseDate, cprDate };
+
+  if (editingIndex !== null) {
+    entries[editingIndex] = entry;
+    editingIndex = null;
+  } else {
+    entries.push(entry);
+  }
   renderTable();
+  saveLocal();
+  clearForm();
 }
 
-function editEntry(index){
+function editEntry(index) {
   const e = entries[index];
   document.getElementById("role").value = e.role;
   document.getElementById("name").value = e.name;
   document.getElementById("licenseDate").value = e.licenseDate;
   document.getElementById("cprDate").value = e.cprDate || "";
-  editIndex = index;
-  document.getElementById("updateBtn").style.display = "inline";
+  editingIndex = index;
 }
 
-function updateEntry(){
-  if(editIndex===null) return;
-  const role = document.getElementById("role").value;
-  const name = document.getElementById("name").value.trim();
-  const licenseDate = document.getElementById("licenseDate").value;
-  const cprDate = document.getElementById("cprDate").value;
-  if(!name || !licenseDate || !cprDate) return alert("All fields are required");
-  entries[editIndex] = {role,name,licenseDate,cprDate};
-  editIndex = null;
-  document.getElementById("updateBtn").style.display = "none";
-  clearInputs();
-  renderTable();
-}
-
-function clearInputs(){
-  document.getElementById("name").value="";
-  document.getElementById("licenseDate").value="";
-  document.getElementById("cprDate").value="";
-}
-
-function renderTable(){
-  const tbody = document.querySelector("#entryTable tbody");
-  tbody.innerHTML = "";
-  const today = new Date();
-  const oneMonth = 30*24*60*60*1000;
-
-  entries.forEach((e,idx)=>{
-    const licenseDiff = new Date(e.licenseDate)-today;
-    const cprDiff = e.cprDate?new Date(e.cprDate)-today:null;
-    let licenseClass = licenseDiff<0?'red':licenseDiff<=oneMonth?'yellow':'green';
-    let cprClass = cprDiff===null?'':cprDiff<0?'red':cprDiff<=oneMonth?'yellow':'green';
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${e.role}</td>
-      <td>${e.name} <button onclick="copyToClipboard('${e.name}')">Copy</button></td>
-      <td class="${licenseClass}">${formatDate(e.licenseDate)} <button onclick="copyToClipboard('${formatDate(e.licenseDate)}')">Copy</button></td>
-      <td class="${cprClass}">${e.cprDate?formatDate(e.cprDate):""} ${e.cprDate?`<button onclick="copyToClipboard('${formatDate(e.cprDate)}')">Copy</button>`:""}</td>
-      <td>
-        <button onclick="copyRowAll(${idx})">Copy All</button>
-        <button onclick="editEntry(${idx})">Edit</button>
-        <button onclick="deleteEntry(${idx})">Delete</button>
-      </td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-function deleteEntry(index){
-  if(confirm("Delete this entry?")){
+function deleteEntry(index) {
+  if (confirm("Delete this entry?")) {
     entries.splice(index,1);
     renderTable();
+    saveLocal();
   }
 }
 
-function copyToClipboard(text){
-  if(text && text!=="N/A"){
-    navigator.clipboard.writeText(text);
-  }
+function clearForm() {
+  document.getElementById("name").value = "";
+  document.getElementById("licenseDate").value = "";
+  document.getElementById("cprDate").value = "";
+  document.getElementById("role").value = "RPH";
 }
 
-// Copy all with 5-second spacing
-async function copyRowAll(index){
-  const e = entries[index];
-  const items = [];
-  if(e.name) items.push(e.name);
-  if(e.licenseDate) items.push(formatDate(e.licenseDate));
-  if(e.cprDate) items.push(formatDate(e.cprDate));
-
-  for(let i=0;i<items.length;i++){
-    await navigator.clipboard.writeText(items[i]);
-    if(i<items.length-1) await new Promise(r=>setTimeout(r,5000));
-  }
+function saveLocal() {
+  localStorage.setItem("rphTechList", JSON.stringify(entries));
 }
 
-// Local export
-function exportToFile(){
-  const blob = new Blob([JSON.stringify(entries)], {type:"text/plain"});
+function loadLocal() {
+  const data = localStorage.getItem("rphTechList");
+  if (data) entries = JSON.parse(data);
+}
+
+function exportList() {
+  const blob = new Blob([JSON.stringify(entries,null,2)], {type:"text/plain"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "rph_tech_list.txt";
   a.click();
 }
 
-// Local import
-function importFromFile(event){
+function importListFromFile(event) {
+  entries = []; // clear before load
   const file = event.target.files[0];
-  if(!file) return;
   const reader = new FileReader();
-  reader.onload = e=>{
-    try{
+  reader.onload = function(e) {
+    try {
       const data = JSON.parse(e.target.result);
-      if(Array.isArray(data)){
-        entries = data;
-        renderTable();
-      }
-    }catch(err){ alert("Invalid file"); }
-  };
+      if (Array.isArray(data)) entries = data;
+      renderTable();
+      saveLocal();
+    } catch {
+      alert("Invalid file format");
+    }
+  }
   reader.readAsText(file);
 }
 
-// GitHub Load
-async function loadFromGitHub(){
-  try{
-    entries = [];
+async function loadFromGitHub() {
+  entries = []; // clear before load
+  try {
+    const res = await fetch(`https://raw.githubusercontent.com/${githubUser}/${githubRepo}/main/${githubPath}`);
+    if (!res.ok) throw new Error("GitHub fetch failed");
+    entries = await res.json();
     renderTable();
-    const url = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/${filePath}`;
-    const res = await fetch(url);
-    if(!res.ok) throw new Error("Fetch failed");
-    const text = await res.text();
-    const data = JSON.parse(text);
-    if(Array.isArray(data)) entries = data;
-    renderTable();
-  }catch(err){ alert("Error loading from GitHub: "+err.message); }
+    saveLocal();
+  } catch (err) {
+    alert("Error loading from GitHub: " + err.message);
+  }
 }
 
-// GitHub Save
-async function saveToGitHub(){
-  if(!githubToken) return alert("GitHub token required");
-  const url = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
-  try{
-    const getRes = await fetch(url,{headers:{Authorization:`token ${githubToken}`}});
-    const getData = await getRes.json();
-    const sha = getData.sha;
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify(entries))));
-    const body = {message:"Update rph_tech_list", content, sha};
-    const putRes = await fetch(url,{
-      method:"PUT",
-      headers:{Authorization:`token ${githubToken}`, "Content-Type":"application/json"},
-      body:JSON.stringify(body)
+async function saveToGitHub() {
+  const token = document.getElementById("ghToken").value.trim();
+  if (!token) { alert("GitHub token required"); return; }
+  try {
+    const getRes = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`, {
+      headers: { Authorization: "token " + token }
     });
-    if(putRes.ok) alert("Saved to GitHub"); else alert("Failed to save");
-  }catch(err){ alert("Error saving: "+err.message); }
+    const fileData = await getRes.json();
+    const sha = fileData.sha;
+
+    const body = {
+      message: "Update list",
+      content: btoa(unescape(encodeURIComponent(JSON.stringify(entries,null,2)))),
+      sha
+    };
+    const putRes = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`, {
+      method: "PUT",
+      headers: { Authorization: "token " + token, "Content-Type":"application/json" },
+      body: JSON.stringify(body)
+    });
+    if (putRes.ok) alert("Saved to GitHub"); else alert("Failed to save to GitHub");
+  } catch (err) {
+    alert("Error saving to GitHub: " + err.message);
+  }
 }
+
+// Init
+loadLocal();
+renderTable();
 </script>
 </body>
 </html>
