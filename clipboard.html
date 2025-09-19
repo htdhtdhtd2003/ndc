@@ -3,13 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NDC Clipboard Sender</title>
+<title>NDC Input & Clipboard</title>
 <style>
   body { font-family: Arial, sans-serif; padding: 20px; }
   input, button, select { padding: 10px; font-size: 16px; margin: 5px 0; }
   .ndc-row { margin-bottom: 10px; }
   #status { margin-top: 15px; font-weight: bold; color: green; }
   #customInterval { width: 120px; display: none; }
+  .valid { border: 2px solid green; }
+  .invalid { border: 2px solid red; }
 </style>
 </head>
 <body>
@@ -40,7 +42,7 @@
 <button onclick="copyAllAtInterval()">Start Copy (F1)</button>
 <button onclick="togglePause()">Pause/Resume (F2)</button>
 <button onclick="stopCopy()">Stop (F3)</button>
-<button onclick="copyNextNDC()">Next NDC (Manual)</button>
+<button onclick="manualNext()">Manual Next</button>
 
 <div id="ndcContainer"></div>
 <div id="status"></div>
@@ -48,6 +50,7 @@
 <script>
 let ndcCount = 0;
 let copyTimer = null;
+let values = [];
 let index = 0;
 let interval = 10000;
 let paused = false;
@@ -68,14 +71,16 @@ function addNDCInput() {
   container.appendChild(row);
 
   const input = row.querySelector('.ndcInput');
-  input.addEventListener('input', () => formatNDC(input));
-  input.addEventListener('blur', () => validateNDC(input));
+  input.addEventListener('input', () => {
+    formatNDC(input);
+    validateNDC(input);
+  });
 }
 
-// Format NDC as 5-4-2 (hyphens after 5th and 9th digits only)
+// Format NDC as 5-4-2 (hyphens after 5th & 9th digits)
 function formatNDC(input) {
   let cursorPos = input.selectionStart;
-  let digits = input.value.replace(/\D/g, '').slice(0, 11); // limit to 11 digits
+  let digits = input.value.replace(/\D/g, '').slice(0, 11);
 
   let formatted = '';
   for (let i = 0; i < digits.length; i++) {
@@ -91,12 +96,15 @@ function formatNDC(input) {
   input.selectionStart = input.selectionEnd = cursorPos;
 }
 
-// Validate NDC length on leaving input
+// Validate input (red/green border)
 function validateNDC(input) {
   let digits = input.value.replace(/\D/g, '');
-  if (digits.length !== 11 && digits.length !== 0) {
-    alert("⚠️ NDC must contain exactly 11 digits.");
-    input.focus();
+  if (digits.length === 11) {
+    input.classList.add('valid');
+    input.classList.remove('invalid');
+  } else {
+    input.classList.add('invalid');
+    input.classList.remove('valid');
   }
 }
 
@@ -104,116 +112,122 @@ function validateNDC(input) {
 function copyToClipboard(id) {
   const input = document.querySelector(`#row-${id} .ndcInput`);
   const ndc = input.value.trim();
-  if (ndc.replace(/\D/g,'').length !== 11) {
-    alert(`Row ${id}: NDC must be 11 digits!`);
-    return;
-  }
+  if (!ndc) { alert("Nothing to copy!"); return; }
+
   navigator.clipboard.writeText(ndc).then(() => {
-    document.getElementById('status').textContent = `Copied ${ndc} (Row ${id})`;
+    document.getElementById('status').textContent = "Copied: " + ndc;
   });
 }
 
-// Start interval copy
+// Start automatic copy cycle
 function copyAllAtInterval() {
   const inputs = document.querySelectorAll('.ndcInput');
-  const activeInputs = Array.from(inputs).filter(i => i.value.trim() !== '');
-  if (activeInputs.length === 0) { alert("No NDCs to copy!"); return; }
+  values = Array.from(inputs).map(input => input.value.trim()).filter(v => v);
 
-  let val = document.getElementById('intervalSelect').value;
-  if (val === "custom") {
-    let customSeconds = parseInt(document.getElementById('customInterval').value,10);
-    if (isNaN(customSeconds) || customSeconds < 1) { alert("Enter valid custom interval!"); return; }
+  if (values.length === 0) {
+    alert("No NDCs to copy!");
+    return;
+  }
+
+  let intervalValue = document.getElementById('intervalSelect').value;
+  if (intervalValue === "custom") {
+    let customSeconds = parseInt(document.getElementById('customInterval').value, 10);
+    if (isNaN(customSeconds) || customSeconds < 1) {
+      alert("Please enter a valid custom interval (min 1 sec)");
+      return;
+    }
     interval = customSeconds * 1000;
   } else {
-    interval = parseInt(val,10) * 1000;
+    interval = parseInt(intervalValue, 10) * 1000;
   }
 
   index = 0;
   paused = false;
-  document.getElementById('status').textContent = `Starting... (0 of ${activeInputs.length})`;
-  runCopy(activeInputs);
+  document.getElementById('status').textContent = `Starting... (0 of ${values.length})`;
+  runCopy();
 }
 
-// Interval copy loop
-function runCopy(inputs) {
+// Automatic copy loop
+function runCopy() {
   if (paused) return;
-  while (index < inputs.length && inputs[index].value.trim() === '') index++;
 
-  if (index >= inputs.length) {
+  if (index >= values.length) {
+    clearTimeout(copyTimer);
     copyTimer = null;
-    document.getElementById('status').textContent = `✅ Finished copying ${inputs.length} NDCs!`;
+    document.getElementById('status').textContent = `✅ Finished copying all ${values.length} NDCs!`;
     return;
   }
 
-  const ndc = inputs[index].value.trim();
+  const ndc = values[index];
   navigator.clipboard.writeText(ndc).then(() => {
-    document.getElementById('status').textContent = `Copied ${index+1} of ${inputs.length}: ${ndc}`;
+    document.getElementById('status').textContent = `Copied ${index + 1} of ${values.length}: ${ndc}`;
   });
   index++;
-  copyTimer = setTimeout(() => runCopy(inputs), interval);
+
+  copyTimer = setTimeout(runCopy, interval);
 }
 
-// Manual "Next NDC" copy
-function copyNextNDC() {
-  const inputs = document.querySelectorAll('.ndcInput');
-  const activeInputs = Array.from(inputs).filter(i => i.value.trim() !== '');
-  if (activeInputs.length === 0) { alert("No NDCs to copy!"); return; }
-
-  if (index >= activeInputs.length) index = 0; // cycle back
-  const ndc = activeInputs[index].value.trim();
-  navigator.clipboard.writeText(ndc).then(() => {
-    document.getElementById('status').textContent = `Manually copied ${index+1} of ${activeInputs.length}: ${ndc}`;
-  });
-  index++;
+// Manual next button
+function manualNext() {
+  if (values.length === 0) {
+    const inputs = document.querySelectorAll('.ndcInput');
+    values = Array.from(inputs).map(input => input.value.trim()).filter(v => v);
+    index = 0;
+  }
+  if (index < values.length) {
+    const ndc = values[index];
+    navigator.clipboard.writeText(ndc).then(() => {
+      document.getElementById('status').textContent = `📋 Manually copied ${index + 1} of ${values.length}: ${ndc}`;
+    });
+    index++;
+  } else {
+    document.getElementById('status').textContent = "✅ All NDCs manually copied.";
+  }
 }
 
-// Pause/resume
+// Pause/Resume
 function togglePause() {
   if (paused) {
     paused = false;
     document.getElementById('status').textContent = "▶️ Resuming...";
-    const inputs = document.querySelectorAll('.ndcInput');
-    runCopy(Array.from(inputs).filter(i => i.value.trim() !== ''));
+    runCopy();
   } else {
-    if (copyTimer) { clearTimeout(copyTimer); copyTimer=null; }
+    if (copyTimer) {
+      clearTimeout(copyTimer);
+      copyTimer = null;
+    }
     paused = true;
-    document.getElementById('status').textContent = `⏸ Paused at ${index}`;
+    document.getElementById('status').textContent = "⏸ Paused at " + index + " of " + values.length;
   }
 }
 
-// Stop copying
+// Stop process
 function stopCopy() {
-  if (copyTimer) clearTimeout(copyTimer);
-  copyTimer=null; paused=false;
+  clearTimeout(copyTimer);
+  copyTimer = null;
+  paused = false;
   document.getElementById('status').textContent = "⏹ Stopped.";
 }
 
-// Clear all NDCs
-function clearAllNDC() {
-  if (confirm("Clear all NDC inputs?")) {
-    stopCopy();
-    document.getElementById('ndcContainer').innerHTML = '';
-    ndcCount = 0;
-    addNDCInput();
-    document.getElementById('status').textContent = "All NDCs cleared.";
-  }
-}
-
-// Show custom interval input
+// Show custom interval field
 document.getElementById('intervalSelect').addEventListener('change', function() {
-  document.getElementById('customInterval').style.display = this.value==="custom" ? "inline-block" : "none";
+  document.getElementById('customInterval').style.display = this.value === "custom" ? "inline-block" : "none";
 });
 
 // Keyboard shortcuts
-document.addEventListener('keydown', function(e){
-  if(e.key==="F1"){ e.preventDefault(); copyAllAtInterval(); }
-  else if(e.key==="F2"){ e.preventDefault(); togglePause(); }
-  else if(e.key==="F3"){ e.preventDefault(); stopCopy(); }
-  else if(e.key==="F10"){ e.preventDefault(); clearAllNDC(); }
+document.addEventListener('keydown', function(e) {
+  if (e.key === "F1") {
+    e.preventDefault(); copyAllAtInterval();
+  } else if (e.key === "F2") {
+    e.preventDefault(); togglePause();
+  } else if (e.key === "F3") {
+    e.preventDefault(); stopCopy();
+  }
 });
 
 // Start with one input
 addNDCInput();
 </script>
+
 </body>
 </html>
