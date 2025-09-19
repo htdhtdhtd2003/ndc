@@ -98,6 +98,16 @@ function addEntry() {
     saveAndRender();
 }
 
+function formatDate(dateStr) {
+    if(!dateStr) return '';
+    const d = new Date(dateStr);
+    if(isNaN(d)) return dateStr; // fallback
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const yyyy = d.getFullYear();
+    return `${mm}/${dd}/${yyyy}`;
+}
+
 function renderTable() {
     const tbody = document.querySelector('#entryTable tbody');
     tbody.innerHTML = '';
@@ -120,7 +130,7 @@ function renderTable() {
         });
     }
 
-    displayEntries.forEach((e, index) => {
+    displayEntries.forEach((e) => {
         const licenseDiff = new Date(e.licenseDate) - today;
         const cprDiff = e.cprDate ? new Date(e.cprDate) - today : null;
 
@@ -141,8 +151,8 @@ function renderTable() {
         tr.innerHTML = `
             <td>${e.role}</td>
             <td>${e.name} <button onclick="copyToClipboard('${e.name}')">Copy</button></td>
-            <td class="${licenseClass}">${e.licenseDate} <button onclick="copyToClipboard('${e.licenseDate}')">Copy</button></td>
-            <td class="${e.cprDate ? cprClass : ''}">${e.cprDate} ${e.cprDate ? `<button onclick="copyToClipboard('${e.cprDate}')">Copy</button>` : ''}</td>
+            <td class="${licenseClass}">${formatDate(e.licenseDate)} <button onclick="copyToClipboard('${formatDate(e.licenseDate)}')">Copy</button></td>
+            <td class="${e.cprDate ? cprClass : ''}">${e.cprDate ? formatDate(e.cprDate) : ''} ${e.cprDate ? `<button onclick="copyToClipboard('${formatDate(e.cprDate)}')">Copy</button>` : ''}</td>
             <td>
                 <button onclick="editEntry(${entries.indexOf(e)})">Edit</button>
                 <button onclick="deleteEntry(${entries.indexOf(e)})">Delete</button>
@@ -153,9 +163,7 @@ function renderTable() {
 }
 
 function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        alert(`Copied: ${text}`);
-    });
+    navigator.clipboard.writeText(text);
 }
 
 function sortTable(key) {
