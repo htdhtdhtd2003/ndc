@@ -17,8 +17,9 @@
     input.valid { border-color: green; }
     input.invalid { border-color: red; }
     button { margin-left: 10px; padding: 5px 10px; font-size: 14px; }
-    #qrcode { margin-top: 20px; }
+    #qrcodeContainer { margin-top: 20px; }
     #status { margin-top: 10px; font-weight: bold; }
+    #qrcodeLabel { font-weight: bold; margin-bottom: 5px; }
   </style>
 </head>
 <body>
@@ -26,7 +27,12 @@
   <div id="ndcContainer"></div>
   <button onclick="addNDCInput()">➕ Add NDC</button>
   <button onclick="cycleNDC()">➡️ Next NDC</button>
-  <div id="qrcode"></div>
+
+  <div id="qrcodeContainer">
+    <div id="qrcodeLabel">QR Code for Selected NDC:</div>
+    <div id="qrcode"></div>
+  </div>
+  
   <div id="status"></div>
 
   <script>
@@ -95,8 +101,41 @@
         qr.makeCode(value);
       }
 
+      document.getElementById("qrcodeLabel").textContent = `QR Code for NDC: ${value}`;
+
       currentIndex = (currentIndex + 1) % inputs.length;
     }
+
+    function clearAllNDC() {
+      if (confirm("Are you sure you want to clear all NDCs? This cannot be undone.")) {
+        document.getElementById("ndcContainer").innerHTML = "";
+        ndcCount = 0;
+        currentIndex = 0;
+        document.getElementById("status").textContent = "";
+        document.getElementById("qrcodeLabel").textContent = "QR Code for Selected NDC:";
+        if (qr) {
+          qr.clear();
+        }
+        addNDCInput(); // Add one input by default
+      }
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      if (e.key === "F1") {
+        e.preventDefault();
+        addNDCInput();
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        cycleNDC();
+      } else if (e.key === "F12") {
+        e.preventDefault();
+        clearAllNDC();
+      }
+    });
+
+    // Start with one input by default
+    addNDCInput();
   </script>
 </body>
 </html>
