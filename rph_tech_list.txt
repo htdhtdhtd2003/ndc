@@ -10,17 +10,5 @@
     "name": "Jimmy",
     "licenseDate": "2025-09-27",
     "cprDate": "2025-09-30"
-  },
-  {
-    "role": "RPH",
-    "name": "John",
-    "licenseDate": "2025-09-27",
-    "cprDate": "2025-09-23"
-  },
-  {
-    "role": "TECH",
-    "name": "Debbie",
-    "licenseDate": "2026-02-20",
-    "cprDate": ""
   }
 ]
