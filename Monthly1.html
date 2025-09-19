@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RPH/Tech Manager</title>
 <style>
-  body { font-family: Arial, sans-serif; padding: 20px; }
+  body { font-family: Arial, sans-serif; padding: 10px; }
   label { display: block; margin: 5px 0 2px; }
-  input, select, button { margin-bottom: 10px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  input, select, button { margin-bottom: 10px; width: 100%; padding: 8px; font-size: 16px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
   th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
   th { background-color: #f4f4f4; cursor: pointer; }
   .red { background-color: #f88; }
@@ -20,8 +20,8 @@
 
 <h2>RPH / TECH Manager</h2>
 
-<label for="token">Enter GitHub Token (optional, required only for saving)</label>
-<input type="password" id="token" placeholder="GitHub token">
+<label for="token">GitHub Token (required only for saving)</label>
+<input type="password" id="token" placeholder="Enter GitHub token here">
 
 <button onclick="loadFromGitHub()">Load from GitHub</button>
 <button onclick="saveToGitHub()">Save to GitHub</button>
@@ -65,10 +65,10 @@ let entries = JSON.parse(localStorage.getItem('entries')) || [];
 let editIndex = null;
 let sortConfig = { key: null, asc: true };
 
-// GitHub repo details
+const githubRawUrl = "https://raw.githubusercontent.com/htdhtdhtd2003/ndc/main/rph_tech_list.txt";
 const repoOwner = "htdhtdhtd2003";
-const repoName = "htdhtdhtd2003.github.io";
-const filePath = "ndc/rph_tech_list.txt";
+const repoName = "ndc";
+const filePath = "rph_tech_list.txt";
 
 document.getElementById('role').addEventListener('change', renderForm);
 
@@ -77,9 +77,7 @@ function renderForm() {
     const container = document.getElementById('formContainer');
     container.innerHTML = '';
     if(!role) return;
-
     const todayStr = new Date().toISOString().split('T')[0];
-
     container.innerHTML += `<label>Name:</label><input type="text" id="name">`;
     container.innerHTML += `<label>License Expiration:</label><input type="date" id="licenseDate" min="${todayStr}">`;
     if(role === 'RPH') container.innerHTML += `<label>CPR Expiration:</label><input type="date" id="cprDate" min="${todayStr}">`;
@@ -87,19 +85,15 @@ function renderForm() {
 
 function addEntry() {
     const role = document.getElementById('role').value;
-    const name = document.getElementById('name')?.value;
+    const name = document.getElementById('name')?.value.trim();
     const licenseDate = document.getElementById('licenseDate')?.value;
     const cprDate = document.getElementById('cprDate')?.value || '';
-
-    if(!role || !name || !licenseDate || (role === 'RPH' && !cprDate)) {
+    if(!role || !name || !licenseDate || (role==='RPH' && !cprDate)) {
         alert('Please fill all required fields.');
         return;
     }
-
     const entry = { role, name, licenseDate, cprDate };
-    if(editIndex !== null) { entries[editIndex] = entry; editIndex = null; } 
-    else { entries.push(entry); }
-
+    if(editIndex !== null) { entries[editIndex] = entry; editIndex = null; } else { entries.push(entry); }
     saveAndRender();
 }
 
@@ -118,10 +112,8 @@ function renderTable() {
     const today = new Date();
     const oneMonth = 30*24*60*60*1000;
     const filter = document.getElementById('filterRole').value;
-
     let displayEntries = [...entries];
     if(filter !== 'ALL') displayEntries = displayEntries.filter(e=>e.role===filter);
-
     if(sortConfig.key) {
         displayEntries.sort((a,b)=>{
             let valA = a[sortConfig.key]||'';
@@ -130,28 +122,34 @@ function renderTable() {
             return sortConfig.asc?(valA>valB?1:-1):(valA<valB?1:-1);
         });
     }
-
     displayEntries.forEach(e=>{
         const licenseDiff = new Date(e.licenseDate)-today;
         const cprDiff = e.cprDate?new Date(e.cprDate)-today:null;
         let licenseClass = licenseDiff<0?'red':licenseDiff<=oneMonth?'yellow':'green';
         let cprClass = cprDiff===null?'':cprDiff<0?'red':cprDiff<=oneMonth?'yellow':'green';
-
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${e.role}</td>
-            <td>${e.name} <button onclick="copyToClipboard('${e.name}')">Copy</button></td>
-            <td class="${licenseClass}">${formatDate(e.licenseDate)} <button onclick="copyToClipboard('${formatDate(e.licenseDate)}')">Copy</button></td>
-            <td class="${cprClass}">${e.cprDate?formatDate(e.cprDate):''} ${e.cprDate?`<button onclick="copyToClipboard('${formatDate(e.cprDate)}')">Copy</button>`:''}</td>
+            <td>${e.name}</td>
+            <td class="${licenseClass}">${formatDate(e.licenseDate)}</td>
+            <td class="${cprClass}">${e.cprDate?formatDate(e.cprDate):'N/A'}</td>
             <td>
                 <button onclick="editEntry(${entries.indexOf(e)})">Edit</button>
                 <button onclick="deleteEntry(${entries.indexOf(e)})">Delete</button>
+                <button onclick="copyAllToClipboard(${entries.indexOf(e)})">Copy All</button>
             </td>`;
         tbody.appendChild(tr);
     });
 }
 
-function copyToClipboard(text){ navigator.clipboard.writeText(text); }
+// Copy Name + License + CPR
+function copyAllToClipboard(index){
+    const e = entries[index];
+    const text = `Name: ${e.name}\nLicense Exp: ${formatDate(e.licenseDate)}\nCPR Exp: ${e.cprDate?formatDate(e.cprDate):'N/A'}`;
+    navigator.clipboard.writeText(text);
+    alert('Copied to clipboard:\n'+text);
+}
+
 function sortTable(key){ sortConfig.key===key?sortConfig.asc=!sortConfig.asc:sortConfig={key:key,asc:true}; renderTable(); }
 function editEntry(index){ 
     const e = entries[index]; 
@@ -165,35 +163,46 @@ function deleteEntry(index){ if(confirm('Delete this entry?')){ entries.splice(i
 function saveAndRender(){ localStorage.setItem('entries',JSON.stringify(entries)); renderTable(); clearForm(); }
 function clearForm(){ document.getElementById('role').value=''; document.getElementById('formContainer').innerHTML=''; }
 function exportList(){ const blob = new Blob([JSON.stringify(entries,null,2)],{type:'text/plain'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='rph_tech_list.txt'; a.click(); }
-function importList(e){ const file=e.target.files[0]; const reader=new FileReader(); reader.onload=function(e){ try{ entries=JSON.parse(e.target.result); localStorage.setItem('entries',JSON.stringify(entries)); renderTable(); } catch(err){ alert('Invalid file'); } }; reader.readAsText(file);}
+function importList(e){ 
+    const file=e.target.files[0]; 
+    const reader=new FileReader(); 
+    reader.onload=function(e){ 
+        try{ 
+            entries=JSON.parse(e.target.result); 
+            localStorage.setItem('entries',JSON.stringify(entries)); 
+            renderTable(); 
+        } catch(err){ alert('Invalid JSON file'); } 
+    }; 
+    reader.readAsText(file);
+}
 function clearAll(){ if(confirm('Clear all entries?')){ entries=[]; localStorage.removeItem('entries'); renderTable(); } }
 
-// --- GitHub integration ---
+// --- GitHub load ---
 async function loadFromGitHub(){
-    const url=`https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/${filePath}`;
     try{
-        const res=await fetch(url);
+        const res = await fetch(githubRawUrl);
         if(!res.ok) return alert('Failed to load from GitHub');
-        const text=await res.text();
-        entries=JSON.parse(text);
-        localStorage.setItem('entries',JSON.stringify(entries));
+        const text = await res.text();
+        entries = JSON.parse(text);
+        localStorage.setItem('entries', JSON.stringify(entries));
         renderTable();
-        alert('Loaded from GitHub');
-    }catch(err){ alert('Error loading GitHub file'); }
+        alert('Loaded from GitHub!');
+    } catch(err){ alert('Error loading GitHub file: '+err.message); }
 }
 
+// --- GitHub save (token required) ---
 async function saveToGitHub(){
-    const token=document.getElementById('token').value.trim();
+    const token = document.getElementById('token').value.trim();
     if(!token) return alert('Token required to save');
     const url=`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
     try{
-        const getRes=await fetch(url,{headers:{Authorization:`token ${token}`}});
-        const data=await getRes.json();
-        const sha=data.sha;
-        const body={message:'Update rph_tech_list.txt', content:btoa(JSON.stringify(entries,null,2)), sha:sha};
-        const putRes=await fetch(url,{method:'PUT', headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}, body:JSON.stringify(body)});
+        const getRes = await fetch(url,{headers:{Authorization:`token ${token}`}});
+        const data = await getRes.json();
+        const sha = data.sha;
+        const body = {message:'Update rph_tech_list.txt', content:btoa(JSON.stringify(entries,null,2)), sha:sha};
+        const putRes = await fetch(url,{method:'PUT', headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}, body:JSON.stringify(body)});
         if(putRes.ok) alert('Saved to GitHub'); else alert('Failed to save to GitHub');
-    }catch(err){ alert('Error saving to GitHub'); }
+    }catch(err){ alert('Error saving to GitHub: '+err.message); }
 }
 
 // Initial render
