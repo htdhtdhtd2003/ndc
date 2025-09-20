@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NDC QR Code Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .ndcRow { margin-bottom: 15px; }
+    input {
+      padding: 5px;
+      font-size: 16px;
+      border: 2px solid #ccc;
+      border-radius: 4px;
+    }
+    input.valid { border-color: green; }
+    input.invalid { border-color: red; }
+    button { margin-left: 10px; padding: 5px 10px; font-size: 14px; }
+    #qrcodeContainer { margin-top: 20px; }
+    #status { margin-top: 10px; font-weight: bold; }
+    #qrcodeLabel { font-weight: bold; margin-bottom: 5px; }
+  </style>
+</head>
+<body>
+  <h2>NDC QR Code Generator</h2>
+  <div id="ndcContainer"></div>
+  <button onclick="addNDCInput()">➕ Add NDC</button>
+  <button onclick="cycleNDC()">➡️ Next NDC</button>
+
+  <div id="qrcodeContainer">
+    <div id="qrcodeLabel">QR Code for Selected NDC:</div>
+    <div id="qrcode"></div>
+  </div>
+  
+  <div id="status"></div>
+
+  <script>
+    let ndcCount = 0;
+    let currentIndex = 0;
+    let qr;
+
+    function addNDCInput() {
+      ndcCount++;
+      const row = document.createElement("div");
+      row.className = "ndcRow";
+      row.innerHTML = `
+        <input type="text" class="ndcInput" placeholder="Enter 11-digit NDC">
+        <button onclick="copyToClipboard(${ndcCount})">Copy NDC</button>
+      `;
+      document.getElementById("ndcContainer").appendChild(row);
+
+      const input = row.querySelector("input");
+
+      input.addEventListener("input", () => {
+        let digits = input.value.replace(/\D/g, "").slice(0, 11);
+        input.value = digits;
+
+        if (digits.length === 11) {
+          input.classList.add("valid");
+          input.classList.remove("invalid");
+        } else {
+          input.classList.add("invalid");
+          input.classList.remove("valid");
+        }
+      });
+
+      input.addEventListener("focus", () => {
+        input.value = input.value.replace(/\D/g, "");
+      });
+
+      input.addEventListener("blur", () => {
+        let digits = input.value.replace(/\D/g, "");
+        if (digits.length === 11) {
+          input.value = digits.slice(0,5) + "-" + digits.slice(5,9) + "-" + digits.slice(9);
+        }
+      });
+    }
+
+    function copyToClipboard(index) {
+      const inputs = document.querySelectorAll(".ndcInput");
+      const input = inputs[index - 1];
+      if (!input) return;
+
+      navigator.clipboard.writeText(input.value).then(() => {
+        document.getElementById("status").textContent = `Copied: ${input.value}`;
+      });
+    }
+
+    function cycleNDC() {
+  const inputs = document.querySelectorAll(".ndcInput");
+  if (inputs.length === 0) return;
+
+  const input = inputs[currentIndex];
+  let value = input.value.trim();
+
+  if (value) {
+    if (!qr) {
+      qr = new QRCode(document.getElementById("qrcode"), { text: value, width: 128, height: 128 });
+    } else {
+      qr.clear();
+      qr.makeCode(value);
+    }
+
+    document.getElementById("qrcodeLabel").textContent = `QR Code for NDC: ${value}`;
+
+    // ✅ Copy formatted version with hyphens
+    navigator.clipboard.writeText(value).then(() => {
+      document.getElementById("status").textContent = `Copied & Showing: ${value}`;
+    });
+  }
+
+  currentIndex = (currentIndex + 1) % inputs.length;
+}
+
+
+    function clearAllNDC() {
+      if (confirm("Are you sure you want to clear all NDCs? This cannot be undone.")) {
+        document.getElementById("ndcContainer").innerHTML = "";
+        ndcCount = 0;
+        currentIndex = 0;
+        document.getElementById("status").textContent = "";
+        document.getElementById("qrcodeLabel").textContent = "QR Code for Selected NDC:";
+        if (qr) {
+          qr.clear();
+        }
+        addNDCInput(); // Add one input by default
+      }
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      if (e.key === "F1") {
+        e.preventDefault();
+        addNDCInput();
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        cycleNDC();
+      } else if (e.key === "F12") {
+        e.preventDefault();
+        clearAllNDC();
+      }
+    });
+
+    // Start with one input by default
+    addNDCInput();
+  </script>
+</body>
+</html>
