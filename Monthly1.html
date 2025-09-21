@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RPH & TECH List</title>
+<title>RPH, TECH & LICENSE List</title>
 <style>
   body { font-family: Arial, sans-serif; margin: 20px; }
   table { border-collapse: collapse; width: 100%; margin-top: 20px; }
@@ -15,7 +15,7 @@
 </style>
 </head>
 <body>
-<h2>RPH & TECH List</h2>
+<h2>RPH, TECH & LICENSE List</h2>
 
 <div id="formSection">
   <label>
@@ -23,6 +23,7 @@
     <select id="role">
       <option value="RPH">RPH</option>
       <option value="TECH">TECH</option>
+      <option value="LICENSE">LICENSE</option>
     </select>
   </label>
   <label>Name: <input type="text" id="name"></label>
@@ -77,6 +78,21 @@ function formatDate(dateStr) {
   return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
 }
 
+function formatTextWithCopy(text){
+  if(!text) return "";
+  return `${formatDate(text)} <button onclick="copyField('${text}')">Copy</button>`;
+}
+
+// --- Sort Entries by Role and Name ---
+function sortEntries() {
+  const roleOrder = { "LICENSE": 1, "RPH": 2, "TECH": 3 };
+  entries.sort((a, b) => {
+    const roleDiff = roleOrder[a.role] - roleOrder[b.role];
+    if (roleDiff !== 0) return roleDiff;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 // --- Render Table ---
 function renderTable() {
   const tbody = document.querySelector("#dataTable tbody");
@@ -88,11 +104,10 @@ function renderTable() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${e.role}</td>
-      <td>${formatTextWithCopy(e.name)}</td>
+      <td>${e.name} <button onclick="copyField('${e.name}')">Copy</button></td>
       <td class="${licenseClass}">${formatTextWithCopy(e.licenseDate)}</td>
       <td class="${cprClass}">${e.cprDate ? formatTextWithCopy(e.cprDate) : ""}</td>
       <td>
-        <button onclick="copyAllRow(${i})">Copy All</button>
         <button onclick="editEntry(${i})">Edit</button>
         <button onclick="deleteEntry(${i})">Delete</button>
       </td>
@@ -101,24 +116,10 @@ function renderTable() {
   });
 }
 
-function formatTextWithCopy(text){
-  if(!text) return "";
-  return `${formatDate(text)} <button onclick="copyField('${text}')">Copy</button>`;
-}
-
 // --- Copy Functions ---
 function copyField(text){
   if(!text) return;
-  navigator.clipboard.writeText(formatDate(text));
-}
-
-async function copyAllRow(index){
-  const e = entries[index];
-  const items = [e.name, e.licenseDate, e.cprDate].filter(x=>x && x.trim()!=="");
-  for(let i=0;i<items.length;i++){
-    await navigator.clipboard.writeText(formatDate(items[i]));
-    if(i<items.length-1) await new Promise(r=>setTimeout(r,5000));
-  }
+  navigator.clipboard.writeText(formatDate(text) || text);
 }
 
 // --- Add/Edit/Delete ---
@@ -128,10 +129,18 @@ function addOrUpdateEntry(){
   const licenseDate = document.getElementById("licenseDate").value;
   const cprDate = document.getElementById("cprDate").value;
 
-  if(!name || !licenseDate) { alert("Name and License Expiration are required."); return; }
-  if(role==="RPH" && !cprDate) { alert("CPR Expiration is required for RPH."); return; }
+  if(!name || !licenseDate) { 
+    alert("Name and License Expiration are required."); 
+    return; 
+  }
 
-  const entry = {role, name, licenseDate, cprDate};
+  // Only RPH requires CPR
+  if(role==="RPH" && !cprDate) { 
+    alert("CPR Expiration is required for RPH."); 
+    return; 
+  }
+
+  const entry = {role, name, licenseDate, cprDate: role==="LICENSE" ? "" : cprDate};
 
   if(editingIndex !== null){
     entries[editingIndex] = entry;
@@ -139,6 +148,9 @@ function addOrUpdateEntry(){
   } else {
     entries.push(entry);
   }
+
+  // Sort after add/update
+  sortEntries();
 
   renderTable();
   saveLocal();
@@ -196,6 +208,7 @@ function importListFromFile(event){
     try{
       const data = JSON.parse(e.target.result);
       if(Array.isArray(data)) entries = data;
+      sortEntries();
       renderTable();
       saveLocal();
     } catch { alert("Invalid file format"); }
@@ -210,6 +223,7 @@ async function loadFromGitHub(){
     const res = await fetch(`https://raw.githubusercontent.com/${githubUser}/${githubRepo}/main/${githubPath}`);
     if(!res.ok) throw new Error("GitHub fetch failed");
     entries = await res.json();
+    sortEntries();
     renderTable();
     saveLocal();
   } catch(err){ alert("Error loading from GitHub: "+err.message); }
@@ -240,6 +254,7 @@ async function saveToGitHub(){
 
 // --- Init ---
 loadLocal();
+sortEntries();
 renderTable();
 </script>
 </body>
