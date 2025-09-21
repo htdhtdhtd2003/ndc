@@ -1,14 +1,14 @@
 [
   {
-    "role": "RPH",
-    "name": "Lawrence Quach",
-    "licenseDate": "2025-12-31",
+    "role": "LICENSE",
+    "name": "State",
+    "licenseDate": "2025-09-27",
     "cprDate": ""
   },
   {
     "role": "RPH",
-    "name": "Patricia Santos",
-    "licenseDate": "2027-07-31",
+    "name": "Lawrence Quach",
+    "licenseDate": "2025-12-31",
     "cprDate": ""
   },
   {
@@ -18,9 +18,15 @@
     "cprDate": ""
   },
   {
-    "role": "TECH",
-    "name": "Mikiah Dawn Gates",
+    "role": "RPH",
+    "name": "Patricia Santos",
     "licenseDate": "2027-07-31",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Manuel Salvador Macedo Mendoza",
+    "licenseDate": "2026-01-31",
     "cprDate": ""
   },
   {
@@ -31,8 +37,14 @@
   },
   {
     "role": "TECH",
-    "name": "Rylee Grace Hausman",
-    "licenseDate": "2027-06-30",
+    "name": "Michael Arthur Leung",
+    "licenseDate": "2026-09-30",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Mikiah Dawn Gates",
+    "licenseDate": "2027-07-31",
     "cprDate": ""
   },
   {
@@ -43,14 +55,8 @@
   },
   {
     "role": "TECH",
-    "name": "Michael Arthur Leung",
-    "licenseDate": "2026-09-30",
-    "cprDate": ""
-  },
-  {
-    "role": "TECH",
-    "name": "Manuel Salvador Macedo Mendoza",
-    "licenseDate": "2026-01-31",
+    "name": "Rylee Grace Hausman",
+    "licenseDate": "2027-06-30",
     "cprDate": ""
   }
 ]
