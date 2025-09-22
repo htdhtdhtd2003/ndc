@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPH, TECH & LICENSE List</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+  .expired { background-color: #f8d7da; }    /* red */
+  .warning { background-color: #fff3cd; }    /* yellow */
+  .valid { background-color: #d4edda; }      /* green */
+  button { margin: 2px; }
+</style>
+</head>
+<body>
+<h2>RPH, TECH & LICENSE List</h2>
+
+<div id="formSection">
+  <label>
+    Role:
+    <select id="role">
+      <option value="RPH">RPH</option>
+      <option value="TECH">TECH</option>
+      <option value="LICENSE">LICENSE</option>
+    </select>
+  </label>
+  <label>Name: <input type="text" id="name"></label>
+  <label>License Expiration: <input type="date" id="licenseDate"></label>
+  <label>CPR Expiration: <input type="date" id="cprDate"></label>
+  <button onclick="addOrUpdateEntry()">Save</button>
+</div>
+
+<div style="margin-top:10px;">
+  <button onclick="exportList()">Export List</button>
+  <input type="file" id="fileInput" accept=".txt" onchange="importListFromFile(event)">
+  <button onclick="loadFromGitHub()">Load from GitHub</button>
+  <input type="password" id="ghToken" placeholder="GitHub Token">
+  <button onclick="saveToGitHub()">Save to GitHub</button>
+</div>
+
+<table id="dataTable">
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Name</th>
+      <th>License Expiration</th>
+      <th>CPR Expiration</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+let entries = [];
+let editingIndex = null;
+const githubUser = "htdhtdhtd2003";
+const githubRepo = "ndc";
+const githubPath = "rph_tech_list1.txt";
+
+// --- Helper Functions ---
+function highlightDate(dateStr) {
+  if (!dateStr) return '';
+  const today = new Date();
+  const date = new Date(dateStr);
+  const diffDays = (date - today) / (1000*60*60*24);
+  if (date < today) return "expired";
+  if (diffDays <= 30) return "warning";
+  return "valid";
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+function formatTextWithCopy(text){
+  if(!text) return "";
+  return `${formatDate(text)} <button onclick="copyField('${text}')">Copy</button>`;
+}
+
+// --- Sort Entries by Role and Name ---
+function sortEntries() {
+  const roleOrder = { "LICENSE": 1, "RPH": 2, "TECH": 3 };
+  entries.sort((a, b) => {
+    const roleDiff = roleOrder[a.role] - roleOrder[b.role];
+    if (roleDiff !== 0) return roleDiff;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+// --- Render Table ---
+function renderTable() {
+  const tbody = document.querySelector("#dataTable tbody");
+  tbody.innerHTML = "";
+  entries.forEach((e, i) => {
+    const licenseClass = highlightDate(e.licenseDate);
+    const cprClass = e.cprDate ? highlightDate(e.cprDate) : "";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${e.role}</td>
+      <td>${e.name} <button onclick="copyField('${e.name}')">Copy</button></td>
+      <td class="${licenseClass}">${formatTextWithCopy(e.licenseDate)}</td>
+      <td class="${cprClass}">${e.cprDate ? formatTextWithCopy(e.cprDate) : ""}</td>
+      <td>
+        <button onclick="editEntry(${i})">Edit</button>
+        <button onclick="deleteEntry(${i})">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// --- Copy Functions ---
+function copyField(text){
+  if(!text) return;
+  navigator.clipboard.writeText(formatDate(text) || text);
+}
+
+// --- Add/Edit/Delete ---
+function addOrUpdateEntry(){
+  const role = document.getElementById("role").value;
+  const name = document.getElementById("name").value.trim();
+  const licenseDate = document.getElementById("licenseDate").value;
+  const cprDate = document.getElementById("cprDate").value;
+
+  if(!name || !licenseDate) { 
+    alert("Name and License Expiration are required."); 
+    return; 
+  }
+
+  // Only RPH requires CPR
+  if(role==="RPH" && !cprDate) { 
+    alert("CPR Expiration is required for RPH."); 
+    return; 
+  }
+
+  const entry = {role, name, licenseDate, cprDate: role==="LICENSE" ? "" : cprDate};
+
+  if(editingIndex !== null){
+    entries[editingIndex] = entry;
+    editingIndex = null;
+  } else {
+    entries.push(entry);
+  }
+
+  // Sort after add/update
+  sortEntries();
+
+  renderTable();
+  saveLocal();
+  clearForm();
+}
+
+function editEntry(index){
+  const e = entries[index];
+  document.getElementById("role").value = e.role;
+  document.getElementById("name").value = e.name;
+  document.getElementById("licenseDate").value = e.licenseDate;
+  document.getElementById("cprDate").value = e.cprDate || "";
+  editingIndex = index;
+}
+
+function deleteEntry(index){
+  if(confirm("Delete this entry?")){
+    entries.splice(index,1);
+    renderTable();
+    saveLocal();
+  }
+}
+
+function clearForm(){
+  document.getElementById("name").value="";
+  document.getElementById("licenseDate").value="";
+  document.getElementById("cprDate").value="";
+  document.getElementById("role").value="RPH";
+}
+
+// --- Local Storage ---
+function saveLocal(){
+  localStorage.setItem("rphTechList", JSON.stringify(entries));
+}
+
+function loadLocal(){
+  const data = localStorage.getItem("rphTechList");
+  if(data) entries = JSON.parse(data);
+}
+
+// --- File Import/Export ---
+function exportList(){
+  const blob = new Blob([JSON.stringify(entries,null,2)], {type:"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "rph_tech_list.txt";
+  a.click();
+}
+
+function importListFromFile(event){
+  entries = []; // clear before load
+  const file = event.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const data = JSON.parse(e.target.result);
+      if(Array.isArray(data)) entries = data;
+      sortEntries();
+      renderTable();
+      saveLocal();
+    } catch { alert("Invalid file format"); }
+  }
+  reader.readAsText(file);
+}
+
+// --- GitHub Load/Save ---
+async function loadFromGitHub(){
+  entries = []; // clear before load
+  try{
+    const res = await fetch(`https://raw.githubusercontent.com/${githubUser}/${githubRepo}/main/${githubPath}`);
+    if(!res.ok) throw new Error("GitHub fetch failed");
+    entries = await res.json();
+    sortEntries();
+    renderTable();
+    saveLocal();
+  } catch(err){ alert("Error loading from GitHub: "+err.message); }
+}
+
+async function saveToGitHub(){
+  const token = document.getElementById("ghToken").value.trim();
+  if(!token){ alert("GitHub token required"); return; }
+  try{
+    const getRes = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`,{
+      headers:{Authorization:"token "+token}
+    });
+    const fileData = await getRes.json();
+    const sha = fileData.sha;
+    const body = {
+      message:"Update list",
+      content:btoa(unescape(encodeURIComponent(JSON.stringify(entries,null,2)))),
+      sha
+    };
+    const putRes = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`,{
+      method:"PUT",
+      headers:{Authorization:"token "+token, "Content-Type":"application/json"},
+      body:JSON.stringify(body)
+    });
+    if(putRes.ok) alert("Saved to GitHub"); else alert("Failed to save to GitHub");
+  } catch(err){ alert("Error saving to GitHub: "+err.message); }
+}
+
+// --- Init ---
+loadLocal();
+sortEntries();
+renderTable();
+</script>
+</body>
+</html>
