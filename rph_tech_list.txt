@@ -1,8 +1,14 @@
 [
   {
     "role": "LICENSE",
-    "name": "State",
-    "licenseDate": "2025-09-27",
+    "name": "DEA License",
+    "licenseDate": "2025-09-22",
+    "cprDate": ""
+  },
+  {
+    "role": "LICENSE",
+    "name": "State LIcense",
+    "licenseDate": "2025-09-22",
     "cprDate": ""
   },
   {
