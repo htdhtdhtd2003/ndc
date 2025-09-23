@@ -17,13 +17,13 @@
     "role": "RPH",
     "name": "Jimmy Huynh",
     "licenseDate": "2026-01-31",
-    "cprDate": ""
+    "cprDate": "2026-07-18"
   },
   {
     "role": "RPH",
     "name": "Tuan Rassool",
     "licenseDate": "2027-02-28",
-    "cprDate": ""
+    "cprDate": "2027-08-21"
   },
   {
     "id": 1758659562489,
