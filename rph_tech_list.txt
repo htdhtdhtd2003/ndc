@@ -2,7 +2,7 @@
   {
     "role": "LICENSE",
     "name": "DEA License",
-    "licenseDate": "2025-09-22",
+    "licenseDate": "2025-09-23",
     "cprDate": ""
   },
   {
