@@ -7,14 +7,8 @@
   },
   {
     "role": "LICENSE",
-    "name": "State LIcense",
-    "licenseDate": "2025-09-22",
-    "cprDate": ""
-  },
-  {
-    "role": "RPH",
-    "name": "Lawrence Quach",
-    "licenseDate": "2025-12-31",
+    "name": "Pharmacy LIcense",
+    "licenseDate": "2027-02-28",
     "cprDate": ""
   },
   {
