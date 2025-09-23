@@ -2,13 +2,61 @@
   {
     "role": "RPH",
     "name": "Jimmy Huynh",
-    "licenseDate": "2026-01-31",
-    "cprDate": "2026-07-18"
+    "licenseDate": "01/31/2026",
+    "cprDate": ""
   },
   {
     "role": "RPH",
-    "name": "RASSOOL, TUAN RIZWAN",
-    "licenseDate": "2027-02-28",
-    "cprDate": "2027-08-21"
+    "name": "Tuan Rassool",
+    "licenseDate": "02/28/2027",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Deborah Irene Rosas",
+    "licenseDate": "04/30/2026",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Jo Ann Rodriguez",
+    "licenseDate": "08/31/2026",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Kimberly Ann Jackson",
+    "licenseDate": "08/31/2027",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Martin Morales",
+    "licenseDate": "02/28/2026",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Mazin Khalid Ali",
+    "licenseDate": "07/31/2026",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Natalia Guzman",
+    "licenseDate": "03/31/2027",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Serena Lin",
+    "licenseDate": "09/30/2026",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Yazmin Barcenas",
+    "licenseDate": "07/31/2027",
+    "cprDate": ""
   }
 ]
