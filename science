@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chemistry Quiz Flip Cards</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background-color: #f4f4f9;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    .card-container {
+      perspective: 1000px;
+      width: 350px;
+      height: 250px;
+      margin-bottom: 20px;
+      cursor: pointer;
+    }
+
+    .card {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.6s;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+    }
+
+    .card.flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      font-size: 1.2em;
+      box-sizing: border-box;
+    }
+
+    .card-front {
+      background-color: #ffffff;
+      color: #2c3e50;
+      font-weight: bold;
+    }
+
+    .card-back {
+      background-color: #3498db;
+      color: white;
+      transform: rotateY(180deg);
+      font-size: 1em;
+      line-height: 1.4;
+    }
+
+    .rating-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .rating-controls button {
+      padding: 10px 15px;
+      font-size: 1em;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      color: white;
+      font-weight: bold;
+    }
+
+    .rating-controls button:nth-child(1) { background-color: #e74c3c; }
+    .rating-controls button:nth-child(2) { background-color: #e67e22; }
+    .rating-controls button:nth-child(3) { background-color: #f1c40f; color: #333;}
+    .rating-controls button:nth-child(4) { background-color: #2ecc71; }
+    .rating-controls button:nth-child(5) { background-color: #3498db; }
+
+    .rating-controls button:hover {
+      opacity: 0.8;
+    }
+
+    #progress-bar-text {
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+
+    #progress-bar-fill {
+      width: 0%;
+      height: 12px;
+      background: #27ae60;
+      border-radius: 6px;
+      transition: width 0.3s;
+      margin-bottom: 20px;
+    }
+
+    #finish-screen {
+      display: none;
+      text-align: center;
+      font-size: 1.5em;
+      color: #27ae60;
+    }
+
+    #finish-screen button {
+      margin-top: 15px;
+      padding: 10px 20px;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background: #3498db;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+
+    #finish-screen button:hover {
+      background: #2980b9;
+    }
+
+    .shake {
+      animation: shake 0.3s;
+    }
+
+    @keyframes shake {
+      0% { transform: translateX(0px); }
+      25% { transform: translateX(-5px); }
+      50% { transform: translateX(5px); }
+      75% { transform: translateX(-5px); }
+      100% { transform: translateX(0px); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Chemistry Quiz Flash Cards</h1>
+
+  <div id="progress-bar-text"></div>
+  <div id="progress-bar-fill"></div>
+
+  <div class="card-container" id="card-container">
+    <div class="card" id="card">
+      <div class="card-face card-front" id="card-front">Click to start!</div>
+      <div class="card-face card-back" id="card-back"></div>
+    </div>
+  </div>
+
+  <div class="rating-controls"></div>
+
+  <div id="finish-screen">
+    🎉 Congratulations! You've mastered all the terms! 🎉
+    <br>
+    <button onclick="resetQuiz()">Restart Quiz</button>
+    <button id="review-btn" onclick="reviewMissed()">Review Missed</button>
+  </div>
+
+  <script>
+    const flashcards = [
+      { term: "Malleability", definition: "Easily hammered and shaped without breaking. Physical property of metals." },
+      { term: "Density", definition: "The amount of mass in a given amount of space. This physical property determines what substance floats or sinks when dropped in water." },
+      { term: "Molecule", definition: "Two or more atoms joined by chemical bonds." },
+      { term: "Pure substance", definition: "Substance that consists of just one type of particle and has the same physical properties throughout e.x. water." },
+      { term: "Kinetic energy", definition: "The energy of motion." },
+      { term: "Element", definition: "A substance that contains only one type of atom and cannot be broken down into a simpler form." },
+      { term: "Liquid", definition: "A substance with particles that are close together but can move around each other, no definite shape (takes the shape of its container) and a definite volume." },
+      { term: "Definite", definition: "Unchanging (fixed) e.x. Solids have a fixed shape and volume." },
+      { term: "Physical properties", definition: "A characteristic of a substance that can be measured without changing the identity of the substance e.x. color, magnetism, conductivity, boiling point, density." },
+      { term: "Non-metal", definition: "An element that is a poor conductor of heat and electricity (good insulators). Most are gases at room temperature." },
+      { term: "Gas", definition: "A substance with particles that are widely spread apart and no definite shape or volume." },
+      { term: "Heterogeneous mixture", definition: "A mixture made of 2 or more substances with parts that are easy to see and separate." },
+      { term: "Rare Earth element", definition: "Group of metals that are not found in large concentrated deposits making them difficult and expensive to extract. Essential part of many high-tech devices." },
+      { term: "Melting point", definition: "The temperature at which a substance changes from solid to liquid." },
+      { term: "Metal", definition: "An element that has luster and is a good conductor of heat and electricity. Most common element on the periodic table." },
+      { term: "Electrical conductivity", definition: "A measure of how easily electricity can pass through a substance." },
+      { term: "Homogeneous mixture", definition: "A mixture made of 2 or more substances so evenly mixed that it is difficult to see the parts (uniform appearance)." },
+      { term: "Boiling point", definition: "The temperature at which a substance changes from liquid to gas." },
+      { term: "Periodic table", definition: "A chart that organizes all known elements based on their properties that determine how they behave and react with one another." },
+      { term: "Solid", definition: "A substance with tightly packed particles and fixed shape and volume." },
+      { term: "Metalloid", definition: "Elements that possess properties of both metals and nonmetals." }
+    ];
+
+    let cardMastery = flashcards.map(card => ({ ...card, mastery: 0 }));
+    let currentCardIndex = 0;
+    let isFlipped = false;
+    let reviewMode = false;
+    let reviewCards = [];
+
+    const cardElement = document.getElementById('card');
+    const cardFront = document.getElementById('card-front');
+    const cardBack = document.getElementById('card-back');
+    const cardContainer = document.getElementById('card-container');
+    const ratingControls = document.querySelector('.rating-controls');
+    const progressBarText = document.getElementById('progress-bar-text');
+    const progressBarFill = document.getElementById('progress-bar-fill');
+    const finishScreen = document.getElementById('finish-screen');
+    const reviewBtn = document.getElementById('review-btn');
+
+    function initializeRatingButtons() {
+      for (let i = 1; i <= 5; i++) {
+        const button = document.createElement('button');
+        button.textContent = i;
+        button.setAttribute('data-rating', i);
+        button.onclick = () => rateCard(i);
+        ratingControls.appendChild(button);
+      }
+    }
+
+    function displayCard() {
+      let activeDeck = reviewMode ? reviewCards : cardMastery;
+
+      if (activeDeck.every(card => card.mastery === 5)) {
+        showFinishScreen();
+        return;
+      }
+      const unmasteredCards = activeDeck.filter(card => card.mastery < 5);
+      const randomIndex = Math.floor(Math.random() * unmasteredCards.length);
+      const cardData = unmasteredCards[randomIndex];
+      currentCardIndex = cardMastery.indexOf(cardData);
+
+      cardFront.textContent = cardData.term;
+      cardBack.textContent = cardData.definition;
+      cardElement.classList.remove('flipped');
+      isFlipped = false;
+
+      updateProgressBar();
+    }
+
+    function flipCard() {
+      cardElement.classList.toggle('flipped');
+      isFlipped = !isFlipped;
+    }
+
+    function rateCard(rating) {
+      if (!isFlipped) {
+        cardElement.classList.add('shake');
+        setTimeout(() => cardElement.classList.remove('shake'), 300);
+        return;
+      }
+      cardMastery[currentCardIndex].mastery = rating;
+      saveProgress();
+      displayCard();
+    }
+
+    function updateProgressBar() {
+      let activeDeck = reviewMode ? reviewCards : cardMastery;
+      const totalCards = activeDeck.length;
+      const masteredCards = activeDeck.filter(card => card.mastery === 5).length;
+      progressBarText.innerHTML =
+        `Card ${currentCardIndex + 1} of ${totalCards} | Mastery: ${cardMastery[currentCardIndex].mastery}/5 | Mastered: ${masteredCards}/${totalCards}`;
+      progressBarFill.style.width = (masteredCards / totalCards * 100) + "%";
+    }
+
+    function showFinishScreen() {
+      cardContainer.style.display = 'none';
+      ratingControls.style.display = 'none';
+      progressBarText.style.display = 'none';
+      progressBarFill.style.display = 'none';
+      finishScreen.style.display = 'block';
+
+      // Only show "Review Missed" if there are any unmastered cards
+      const missed = cardMastery.filter(c => c.mastery < 5);
+      reviewBtn.style.display = missed.length > 0 ? 'inline-block' : 'none';
+    }
+
+    function resetQuiz() {
+      cardMastery.forEach(card => card.mastery = 0);
+      reviewMode = false;
+      reviewCards = [];
+      saveProgress();
+      restartUI();
+      displayCard();
+    }
+
+    function reviewMissed() {
+      reviewCards = cardMastery.filter(c => c.mastery < 5);
+      reviewMode = true;
+      restartUI();
+      displayCard();
+    }
+
+    function restartUI() {
+      currentCardIndex = 0;
+      cardContainer.style.display = 'block';
+      ratingControls.style.display = 'flex';
+      progressBarText.style.display = 'block';
+      progressBarFill.style.display = 'block';
+      finishScreen.style.display = 'none';
+    }
+
+    function saveProgress() {
+      localStorage.setItem("flashcards", JSON.stringify(cardMastery));
+    }
+
+    function loadProgress() {
+      const data = JSON.parse(localStorage.getItem("flashcards"));
+      if (data) cardMastery = data;
+    }
+
+    cardContainer.addEventListener('click', flipCard);
+
+    document.addEventListener('keydown', (e) => {
+      if (['1','2','3','4','5'].includes(e.key)) {
+        rateCard(Number(e.key));
+      }
+    });
+
+    initializeRatingButtons();
+    loadProgress();
+    displayCard();
+  </script>
+</body>
+</html>
