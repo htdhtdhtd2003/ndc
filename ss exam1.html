@@ -1,1 +1,404 @@
 
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cultural Geography — Exam 1 (Interactive)</title>
+  <style>
+    :root{
+      --bg:#f7f8fb;
+      --card:#ffffff;
+      --muted:#666;
+      --accent:#1f6feb;
+      --correct:#e6f9ea;
+      --incorrect:#ffecec;
+      --correct-border:#2d8a4a;
+      --incorrect-border:#c12b2b;
+    }
+    body{
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#eef2ff 0%,var(--bg) 100%);
+      margin:0;
+      padding:24px;
+      color:#0b1220;
+      -webkit-font-smoothing:antialiased;
+    }
+    .wrap{
+      max-width:900px;
+      margin:0 auto;
+    }
+    header{
+      display:flex;
+      gap:16px;
+      align-items:center;
+      margin-bottom:18px;
+    }
+    h1{
+      font-size:20px;
+      margin:0;
+    }
+    .card{
+      background:var(--card);
+      border-radius:12px;
+      box-shadow:0 6px 18px rgba(20,30,60,0.06);
+      padding:18px;
+      margin-bottom:12px;
+    }
+    .meta{
+      color:var(--muted);
+      font-size:13px;
+    }
+    .question{
+      margin:14px 0;
+      padding:12px;
+      border-radius:8px;
+      border:1px solid #eef2f6;
+    }
+    .question h3{
+      margin:0 0 8px 0;
+      font-size:15px;
+    }
+    .choices{
+      display:grid;
+      gap:8px;
+    }
+    label.choice{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      cursor:pointer;
+      padding:8px;
+      border-radius:6px;
+      border:1px solid transparent;
+      user-select:none;
+    }
+    label.choice input{
+      margin-top:2px;
+    }
+    .controls{
+      display:flex;
+      gap:10px;
+      margin-top:6px;
+      flex-wrap:wrap;
+    }
+    button{
+      background:var(--accent);
+      color:white;
+      border:0;
+      padding:10px 14px;
+      border-radius:8px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    button.secondary{
+      background:#fff;
+      color:var(--accent);
+      border:1px solid rgba(31,111,235,0.12);
+    }
+    .result{
+      margin-top:12px;
+      padding:12px;
+      border-radius:8px;
+      font-weight:600;
+    }
+    .result.good{ background:var(--correct); border:1px solid var(--correct-border); color:var(--correct-border); }
+    .result.bad{ background:var(--incorrect); border:1px solid var(--incorrect-border); color:var(--incorrect-border); }
+    .small{
+      font-size:13px;
+      color:var(--muted);
+    }
+    .answer-key{
+      margin-top:12px;
+      padding:12px;
+      border-radius:8px;
+      background:#fbfdff;
+      border:1px solid #eef6ff;
+    }
+    .q-correct{ background:var(--correct); border:1px solid var(--correct-border); }
+    .q-incorrect{ background:var(--incorrect); border:1px solid var(--incorrect-border); }
+    footer{margin-top:18px; font-size:13px; color:var(--muted); text-align:center;}
+    @media (max-width:600px){
+      body{padding:12px;}
+      header{flex-direction:column;align-items:flex-start;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Cultural Geography — Exam 1 (20 multiple-choice)</h1>
+        <div class="meta">Complete all questions and click <strong>Submit & Grade</strong></div>
+      </div>
+    </header>
+
+    <div id="exam" class="card" role="region" aria-label="Cultural Geography exam">
+      <!-- Questions will render here -->
+    </div>
+
+    <div class="card">
+      <div class="controls" role="group" aria-label="exam controls">
+        <button id="submitBtn">Submit & Grade</button>
+        <button id="showAnswersBtn" class="secondary">Show Correct Answers</button>
+        <button id="retakeBtn" class="secondary">Retake / Reset</button>
+        <button id="downloadBtn" class="secondary">Download Results</button>
+      </div>
+
+      <div id="summary" style="margin-top:12px"></div>
+      <div id="answerKeyContainer" style="display:none" class="answer-key"></div>
+    </div>
+
+    <footer>
+      Tip: Use <strong>Tab</strong> to navigate answers and <strong>Enter</strong> to select.
+    </footer>
+  </div>
+
+  <script>
+    // ===== Questions & Answers data =====
+    const questions = [
+      { q: "What are the lines of latitude and longitude that divide the world into the four hemispheres?", choices:["Tropic of Cancer and Tropic of Capricorn","Arctic Circle and Antarctic Circle","Equator and Prime Meridian","International Date Line and Equator"], answer:2 },
+      { q: "Which line of latitude is found at 0° and divides the world into the Northern and Southern Hemispheres?", choices:["Prime Meridian","International Date Line","Equator","Tropic of Cancer"], answer:2 },
+      { q: "Which type of government is defined as a limited government that is ruled by the people, and a constitution limits the power of the government?", choices:["Monarchy","Theocracy","Democracy","Absolute Monarchy"], answer:2 },
+      { q: "What does the 'N' or 'S' following a latitude measurement indicate?", choices:["Whether the line of latitude is East or West of the Prime Meridian.","Whether the line of latitude is north or south of the Equator.","Whether the line of latitude is long or wide.","Whether the line runs North or South on the globe."], answer:1 },
+      { q: "Which lines of measurement are shown in the image below, running north to south and measured from 0° to 180°?", choices:["Longitude","Latitude","Tropics","Equator"], answer:0 },
+      { q: "Which physical feature is described as 'an area of fertile land in the desert' and would be settled by people that live in the desert?", choices:["Delta","Isthmus","Strait","Oasis"], answer:3 },
+      { q: "Which geographical term defines a narrow stretch of water connecting two larger bodies of water, which allows for open trade routes by boat?", choices:["Isthmus","Strait","Delta","Oasis"], answer:1 },
+      { q: "Which of the following is a characteristic of a limited government?", choices:["Citizens have little or no power.","The government is not restricted by the laws.","Power of the government is limited by a constitution or other set of written laws.","The king or queen has complete power to make any laws he or she wishes."], answer:2 },
+      { q: "The Tigris and Euphrates Rivers, along with the Nile River, were influential in the development of civilization in which region?", choices:["South America","India","The Middle East","China"], answer:2 },
+      { q: "What did the rivers provide to the Ancient Egyptians and ancient Mesopotamians that encouraged settlement?", choices:["Gold and copper","Defense from attack","Fresh water, fertile land, and transportation","Oil reserves"], answer:2 },
+      { q: "Which two non-renewable natural resources are major sources of conflict in the Middle East?", choices:["Copper and natural gas","Diamonds and gold","Fresh water and oil","Coal and timber"], answer:2 },
+      { q: "The Middle East has over what percentage of the world's oil reserves?", choices:["33%","50%","66%","90%"], answer:1 },
+      { q: "A monarchy where the king or queen has complete power to make any laws is known as a(n):", choices:["Constitutional Monarchy","Limited Monarchy","Absolute Monarchy","Democracy"], answer:2 },
+      { q: "An 'unlimited government ruled by leaders claiming to represent God,' with all government decisions based on one religion, is called a:", choices:["Democracy","Theocracy","Absolute Monarchy","Constitutional Monarchy"], answer:1 },
+      { q: "Which of the following is listed as an element of culture?", choices:["Climate","Religion","Economics","Tourism"], answer:1 },
+      { q: "Why did the Egyptians build the Aswan High Dam?", choices:["To generate trade revenue.","To control the flooding during the rainy season and prevent drought.","To stop the flow of the Nile River completely.","To create a new desert oasis."], answer:1 },
+      { q: "The Aswan High Dam allows water to be available year-round and for farmers to grow crops year-round. This is considered a:", choices:["Positive/Benefit","Negative/Drawback","Conflict","Adaptation"], answer:0 },
+      { q: "What is a listed negative drawback of the Aswan High Dam?", choices:["Flooding increased dramatically.","Silt is not deposited so farming is not as productive.","Water is only available for a few months a year.","Electricity production stopped."], answer:1 },
+      { q: "What term is defined as 'A narrow stretch of land connecting two larger bodies of land' and opens up trade routes by foot or road?", choices:["Strait","Delta","Oasis","Isthmus"], answer:3 },
+      { q: "Why is it more difficult and expensive to produce oil in the Middle East now than in the past?", choices:["The oil closer to the Earth's surface has already been extracted, so they must dig deeper","The price of oil has dropped too low.","New regulations on environmental protection.","Conflict has blocked all major drilling sites."], answer:0 }
+    ];
+
+    // ===== Render the exam =====
+    const examEl = document.getElementById('exam');
+
+    function renderExam() {
+      examEl.innerHTML = '';
+      questions.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'question';
+        div.id = `q${idx}`;
+        div.setAttribute('data-index', idx);
+
+        const qTitle = document.createElement('h3');
+        qTitle.innerHTML = (idx+1) + ". " + item.q;
+        div.appendChild(qTitle);
+
+        const choicesDiv = document.createElement('div');
+        choicesDiv.className = 'choices';
+        choicesDiv.setAttribute('role','radiogroup');
+        choicesDiv.setAttribute('aria-labelledby', `q${idx}-label`);
+
+        item.choices.forEach((choiceText, cIdx) => {
+          const choiceId = `q${idx}_c${cIdx}`;
+          const label = document.createElement('label');
+          label.className = 'choice';
+          label.htmlFor = choiceId;
+          label.tabIndex = 0;
+
+          const input = document.createElement('input');
+          input.type = 'radio';
+          input.name = `question${idx}`;
+          input.id = choiceId;
+          input.value = cIdx;
+          input.required = false;
+          input.setAttribute('aria-label', choiceText);
+
+          const span = document.createElement('span');
+          span.textContent = String.fromCharCode(65 + cIdx) + ". " + choiceText;
+
+          label.appendChild(input);
+          label.appendChild(span);
+          choicesDiv.appendChild(label);
+        });
+
+        div.appendChild(choicesDiv);
+        examEl.appendChild(div);
+      });
+    }
+
+    renderExam();
+
+    // ===== Grading logic =====
+    const submitBtn = document.getElementById('submitBtn');
+    const showAnswersBtn = document.getElementById('showAnswersBtn');
+    const retakeBtn = document.getElementById('retakeBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const summaryEl = document.getElementById('summary');
+    const answerKeyContainer = document.getElementById('answerKeyContainer');
+
+    function getUserAnswers(){
+      const answers = [];
+      for(let i=0;i<questions.length;i++){
+        const radios = document.getElementsByName('question'+i);
+        let selected = null;
+        for(const r of radios){
+          if(r.checked){ selected = Number(r.value); break; }
+        }
+        answers.push(selected);
+      }
+      return answers;
+    }
+
+    function grade(){
+      const user = getUserAnswers();
+      let score = 0;
+      const total = questions.length;
+      // validate: check for unanswered
+      const unanswered = user.reduce((acc, v, i) => (v === null ? acc.concat(i+1) : acc), []);
+      // grade each
+      for(let i=0;i<questions.length;i++){
+        const qDiv = document.getElementById(`q${i}`);
+        qDiv.classList.remove('q-correct','q-incorrect');
+        // remove any previous highlight on choices
+        qDiv.querySelectorAll('label.choice').forEach(l => {
+          l.style.outline = 'none';
+          l.style.background = '';
+        });
+        const selected = user[i];
+        const correct = questions[i].answer;
+        if(selected !== null && selected !== undefined){
+          if(selected === correct){
+            score++;
+            qDiv.classList.add('q-correct');
+          } else {
+            qDiv.classList.add('q-incorrect');
+          }
+        } else {
+          // unanswered => mark as incorrect visually
+          qDiv.classList.add('q-incorrect');
+        }
+      }
+
+      // show summary
+      const percent = Math.round((score/total)*100);
+      const pass = percent >= 70; // pass threshold (adjustable)
+      summaryEl.innerHTML = `
+        <div class="result ${pass ? 'good' : 'bad'}">
+          Score: ${score} / ${total} — ${percent}% &nbsp; ${pass ? '✅ Passed' : '⛔ Not passed'}
+        </div>
+        <div class="small" style="margin-top:8px">
+          ${user.includes(null) || user.includes(undefined) ? 'Some questions were unanswered and counted as incorrect.' : ''}
+        </div>
+      `;
+
+      // show per-question feedback
+      for(let i=0;i<questions.length;i++){
+        const qDiv = document.getElementById(`q${i}`);
+        const userSel = user[i];
+        // highlight choices: user's choice gets outline; correct answer gets bold border
+        const labels = qDiv.querySelectorAll('label.choice');
+        labels.forEach((label, cIdx) => {
+          label.style.border = '1px solid transparent';
+          if(cIdx === questions[i].answer){
+            label.style.border = '2px solid rgba(45,138,74,0.12)';
+            // we won't change text color, just border background handled by container
+          }
+          // user's choice
+          if(userSel !== null && Number(userSel) === cIdx){
+            label.style.outline = '3px solid rgba(31,111,235,0.12)';
+          }
+        });
+      }
+
+      // Prepare answer key content
+      prepareAnswerKey(user);
+    }
+
+    function prepareAnswerKey(userAnswers){
+      const container = answerKeyContainer;
+      container.innerHTML = '<strong>Answer Key</strong><ol>';
+      for(let i=0;i<questions.length;i++){
+        const correctIndex = questions[i].answer;
+        const correctLetter = String.fromCharCode(65 + correctIndex);
+        const userSel = userAnswers ? userAnswers[i] : null;
+        const userLetter = (userSel === null || userSel === undefined) ? '—' : String.fromCharCode(65 + userSel);
+        container.innerHTML += `<li style="margin:6px 0">${questions[i].q}<br><span class="small">Correct: <strong>${correctLetter}</strong> &nbsp; Your answer: <strong>${userLetter}</strong></span></li>`;
+      }
+      container.innerHTML += '</ol>';
+    }
+
+    // Button events
+    submitBtn.addEventListener('click', () => {
+      grade();
+      // show the answer key container (collapsed by default)
+      answerKeyContainer.style.display = 'block';
+      // scroll to results
+      answerKeyContainer.scrollIntoView({behavior:'smooth'});
+    });
+
+    showAnswersBtn.addEventListener('click', () => {
+      // reveal the answer key without grading if not graded
+      const user = getUserAnswers();
+      prepareAnswerKey(user);
+      answerKeyContainer.style.display = answerKeyContainer.style.display === 'block' ? 'none' : 'block';
+      answerKeyContainer.scrollIntoView({behavior:'smooth'});
+    });
+
+    retakeBtn.addEventListener('click', () => {
+      // clear all selections and UI highlights
+      for(let i=0;i<questions.length;i++){
+        const radios = document.getElementsByName('question'+i);
+        radios.forEach(r => r.checked = false);
+        const qDiv = document.getElementById(`q${i}`);
+        qDiv.classList.remove('q-correct','q-incorrect');
+        qDiv.querySelectorAll('label.choice').forEach(l => {
+          l.style.outline = 'none';
+          l.style.background = '';
+          l.style.border = '1px solid transparent';
+        });
+      }
+      summaryEl.innerHTML = '';
+      answerKeyContainer.style.display = 'none';
+      answerKeyContainer.innerHTML = '';
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      // create a simple results report
+      const user = getUserAnswers();
+      let score = 0;
+      for(let i=0;i<questions.length;i++){
+        if(user[i] === questions[i].answer) score++;
+      }
+      const percent = Math.round((score/questions.length)*100);
+
+      let report = `Cultural Geography — Exam 1 Results\nScore: ${score}/${questions.length} (${percent}%)\n\n`;
+      for(let i=0;i<questions.length;i++){
+        const correct = String.fromCharCode(65 + questions[i].answer);
+        const userA = (user[i]===null || user[i]===undefined) ? '—' : String.fromCharCode(65 + user[i]);
+        report += `${i+1}. ${questions[i].q}\n   Correct: ${correct}  Your: ${userA}\n`;
+      }
+
+      const blob = new Blob([report], {type: 'text/plain'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Exam1_results.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // keyboard accessibility: allow label "click" via Enter when label focused
+    document.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && document.activeElement && document.activeElement.matches('label.choice')){
+        document.activeElement.querySelector('input')?.click();
+        e.preventDefault();
+      }
+    });
+
+    // Prepare initial (hidden) answer key
+    prepareAnswerKey(null);
+  </script>
+</body>
+</html>
