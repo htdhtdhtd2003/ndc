@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cultural Geography Flip Cards</title>
+    
+    <style>
+        /* --- CSS STYLES --- */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        #app {
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #007bff;
+        }
+
+        #card-container {
+            perspective: 1000px;
+            height: 300px; /* Fixed height for all cards */
+            margin: 20px 0;
+            position: relative; /* Needed for absolute positioning of cards */
+        }
+
+        .card {
+            width: 100%;
+            height: 100%;
+            position: absolute; /* Stack all cards */
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            background-color: white;
+            cursor: pointer;
+            display: none; /* Hidden by default, JS shows current card */
+        }
+
+        .card.active {
+            display: block;
+            z-index: 10;
+        }
+
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+            border-radius: 10px;
+        }
+
+        .card-front {
+            background-color: #e9f5ff;
+            font-size: 1.2em;
+            font-weight: bold;
+            border: 3px solid #007bff;
+        }
+
+        .card-back {
+            background-color: #fff3e0;
+            transform: rotateY(180deg);
+            text-align: left;
+            border: 3px solid #ff9800;
+        }
+
+        .card-back p {
+            margin: 0;
+            padding: 5px 0;
+            line-height: 1.4;
+        }
+
+        /* Rating styles */
+        .rating {
+            margin-top: 15px;
+            font-size: 0; /* To remove whitespace gap between inline elements */
+        }
+
+        .star {
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #ccc;
+            transition: color 0.2s;
+            line-height: 1;
+        }
+
+        .star.rated {
+            color: gold;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            flex-grow: 1;
+            margin: 0 5px;
+        }
+
+        button:first-child {
+            margin-left: 0;
+        }
+        
+        button:last-child {
+            margin-right: 0;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <h1>Unit 1 Test Review Flip Cards</h1>
+        <p id="completion-message" style="display: none; color: green; font-weight: bold;">🥳 All cards have a 5-star rating! Great job!</p>
+
+        <div id="card-container">
+            </div>
+
+        <div class="controls">
+            <button id="prev-card-btn" disabled>Previous Card</button>
+            <button id="flip-all-btn">Flip All Forward</button>
+            <button id="next-card-btn" disabled>Next Card</button>
+        </div>
+    </div>
+
+    <script>
+        // --- JAVASCRIPT LOGIC ---
+
+        // --- Card Data ---
+        const cardData = [
+            {
+                question: "Describe the **Equator**.",
+                [span_0](start_span)answer: "Found at **0° latitude**. Divides the world into the **Northern and Southern Hemispheres**[span_0](end_span)."
+            },
+            {
+                question: "Describe the **Prime Meridian**.",
+                answer: "Found at **0° longitude**. [span_1](start_span)Divides the world into the **Eastern and Western Hemispheres**[span_1](end_span)."
+            },
+            {
+                question: "What are the characteristics of **Latitude** lines?",
+                [span_2](start_span)answer: "Lines run **east to west** on a map or globe[span_2](end_span). [span_3](start_span)The N or S indicates whether the line is north or south of the Equator[span_3](end_span). [span_4](start_span)The word comes from the Latin for 'wide' or 'side'[span_4](end_span)."
+            },
+            {
+                question: "What are the characteristics of **Longitude** lines?",
+                [span_5](start_span)answer: "Lines run **north and south** on a map or globe[span_5](end_span). [span_6](start_span)The E or W indicates whether the line is east or west of the Prime Meridian[span_6](end_span). [span_7](start_span)The word comes from the Latin for 'long'[span_7](end_span)."
+            },
+            {
+                question: "Define: **Oasis**. Would people settle there?",
+                [span_8](start_span)answer: "An area of **fertile land in the desert**[span_8](end_span). **[span_9](start_span)Yes**, people that live in the desert would settle near an oasis[span_9](end_span)."
+            },
+            {
+                question: "Define: **Strait**. Would people settle there?",
+                [span_10](start_span)answer: "A narrow stretch of **water** connecting two larger bodies of water[span_10](end_span). **[span_11](start_span)No**, people would not settle in a body of water[span_11](end_span)."
+            },
+            {
+                question: "Define: **Delta**. Why is it important?",
+                [span_12](start_span)answer: "An area where sand, silt, clay, or gravel is dropped at the mouth of a river[span_12](end_span). [span_13](start_span)People can **farm and grow food** in the fertile soil[span_13](end_span)."
+            },
+            {
+                question: "Define: **Isthmus**.",
+                [span_14](start_span)answer: "A narrow stretch of **land** connecting two larger bodies of land[span_14](end_span). [span_15](start_span)It allows access by foot or road from one body of land to another, opening trade routes[span_15](end_span)."
+            },
+            {
+                question: "List six elements of **culture**.",
+                [span_16](start_span)answer: "Geography, food, religion, education, political systems, and family life[span_16](end_span)."
+            },
+            {
+                question: "Describe a **Democracy** (limited or unlimited)?",
+                [span_17](start_span)answer: "A **limited** government that is ruled by the people[span_17](end_span). [span_18](start_span)A constitution limits the government's power, and officials are accountable to the people[span_18](end_span)."
+            },
+            {
+                question: "Describe an **Absolute Monarchy** (limited or unlimited)?",
+                [span_19](start_span)answer: "An **unlimited** government where the king or queen has complete power to make any laws he or she wishes[span_19](end_span)."
+            },
+            {
+                question: "Describe a **Constitutional Monarchy** (limited or unlimited)?",
+                [span_20](start_span)answer: "A **limited** government where a constitution limits the monarch's (king or queen) power[span_20](end_span)."
+            },
+            {
+                question: "Describe a **Theocracy** (limited or unlimited)?",
+                [span_21](start_span)answer: "An **unlimited** government ruled by leaders claiming to represent God[span_21](end_span). [span_22](start_span)All government decisions are based on one religion[span_22](end_span)."
+            },
+            {
+                question: "List two characteristics of **Limited Governments**.",
+                answer: "1. [span_23](start_span)Power of the government is limited by a constitution or other set of written laws[span_23](end_span). 2. [span_24](start_span)Both citizens and the government are restricted by laws[span_24](end_span)."
+            },
+            {
+                question: "List two characteristics of **Unlimited Governments**.",
+                answer: "1. [span_25](start_span)Government has the power to determine the laws but is not restricted by the laws[span_25](end_span). 2. [span_26](start_span)Citizens have little or no power[span_26](end_span)."
+            },
+            {
+                question: "What two river systems influenced civilization in the Middle East?",
+                [span_27](start_span)answer: "The **Tigris and Euphrates Rivers** (in Turkey, Syria, and Iraq) and the **Nile River** (in Egypt)[span_27](end_span)."
+            },
+            {
+                question: "Why did ancient peoples settle near these rivers?",
+                [span_28](start_span)answer: "The rivers provided **fresh water**, water for **irrigation**, **fertile land**, and a means of **transportation**[span_28](end_span)."
+            },
+            {
+                question: "What do Middle Eastern countries/cultures have in common?",
+                [span_29](start_span)answer: "**Geography**, a **shortage of fresh water**, and **dry, arid landscapes**[span_29](end_span)."
+            },
+            {
+                question: "What two non-renewable natural resources are sources of conflict in the Middle East?",
+                [span_30](start_span)answer: "**Fresh water and oil**[span_30](end_span)."
+            },
+            {
+                question: "Why did Egyptians build the **Aswan High Dam**? Was it an adaptation or a modification?",
+                [span_31](start_span)answer: "They wanted to **control the flooding** during the rainy season and **prevent drought**[span_31](end_span). [span_32](start_span)It was a **modification** of their environment[span_32](end_span)."
+            },
+            {
+                question: "List a **positive** effect of the Aswan High Dam.",
+                [span_33](start_span)answer: "It **controls flooding**, water is available **year-round** for crops, and **electricity is produced**[span_33](end_span)."
+            },
+            {
+                question: "List a **negative** effect of the Aswan High Dam.",
+                [span_34](start_span)answer: "Silt is not deposited (less productive farming), people had to be **relocated**, and cultures/monuments were threatened[span_34](end_span)."
+            },
+            {
+                question: "Which region has more than half the world's oil reserves?",
+                [span_35](start_span)answer: "The **Middle East**, with over **66%** of the world's oil reserves[span_35](end_span)."
+            },
+            {
+                question: "Why is it more difficult/expensive to produce oil now?",
+                [span_36](start_span)answer: "The oil closer to the Earth's surface has already been extracted, so they must **dig deeper**[span_36](end_span). [span_37](start_span)Also, **conflict** among countries is a factor[span_37](end_span)."
+            },
+        ];
+
+        // Initialize card data with a rating property
+        const cards = cardData.map(data => ({ ...data, rating: 1, flipped: false }));
+
+        let currentCardIndex = 0;
+        const cardContainer = document.getElementById('card-container');
+        const prevBtn = document.getElementById('prev-card-btn');
+        const nextBtn = document.getElementById('next-card-btn');
+        const flipAllBtn = document.getElementById('flip-all-btn');
+        const completionMessage = document.getElementById('completion-message');
+
+        /**
+         * Renders all cards to the DOM and sets up event listeners.
+         */
+        function renderCards() {
+            cardContainer.innerHTML = ''; // Clear existing cards
+            cards.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'card';
+                cardElement.dataset.index = index;
+                cardElement.innerHTML = `
+                    <div class="card-face card-front">
+                        <p>${card.question}</p>
+                        <p style="font-size: 0.8em; font-weight: normal; margin-top: 10px;">(Click to flip)</p>
+                    </div>
+                    <div class="card-face card-back">
+                        <p>${card.answer}</p>
+                        <div class="rating" data-index="${index}">
+                            ${generateStarHTML(card.rating)}
+                        </div>
+                    </div>
+                `;
+
+                // Add event listener to flip card on click
+                cardElement.addEventListener('click', (e) => {
+                    // Only flip if the click target is NOT a star rating element
+                    if (!e.target.classList.contains('star')) {
+                        flipCard(cardElement);
+                    }
+                });
+                
+                // Add event listener for rating
+                const ratingDiv = cardElement.querySelector('.rating');
+                ratingDiv.addEventListener('click', handleRating);
+
+                cardContainer.appendChild(cardElement);
+            });
+
+            displayCurrentCard();
+        }
+
+        /**
+         * Generates the HTML string for the star rating.
+         * @param {number} currentRating - The current rating (1-5).
+         * @returns {string} HTML string for stars.
+         */
+        function generateStarHTML(currentRating) {
+            let stars = '';
+            for (let i = 1; i <= 5; i++) {
+                const ratedClass = i <= currentRating ? 'rated' : '';
+                stars += `<span class="star ${ratedClass}" data-value="${i}">★</span>`;
+            }
+            return stars;
+        }
+
+        /**
+         * Toggles the 'flipped' class on a card element.
+         * @param {HTMLElement} cardElement - The card element to flip.
+         */
+        function flipCard(cardElement) {
+            cardElement.classList.toggle('flipped');
+            const index = parseInt(cardElement.dataset.index);
+            cards[index].flipped = cardElement.classList.contains('flipped');
+        }
+
+        /**
+         * Updates the display to show only the card at the currentCardIndex.
+         */
+        function displayCurrentCard() {
+            const allCards = document.querySelectorAll('.card');
+            allCards.forEach(card => card.classList.remove('active'));
+
+            const currentCard = document.querySelector(`.card[data-index="${currentCardIndex}"]`);
+            if (currentCard) {
+                currentCard.classList.add('active');
+                
+                // Ensure the visual flip state matches the internal state
+                if (cards[currentCardIndex].flipped) {
+                    currentCard.classList.add('flipped');
+                } else {
+                    currentCard.classList.remove('flipped');
+                }
+            }
+
+            updateNavigationButtons();
+            checkCompletion();
+        }
+
+        /**
+         * Handles the click event for rating a card.
+         * @param {Event} e - The click event.
+         */
+        function handleRating(e) {
+            if (e.target.classList.contains('star')) {
+                const newRating = parseInt(e.target.dataset.value);
+                const cardIndex = parseInt(e.currentTarget.dataset.index);
+                
+                cards[cardIndex].rating = newRating;
+                
+                // Update the visual representation of the stars
+                const stars = e.currentTarget.querySelectorAll('.star');
+                stars.forEach(star => {
+                    const starValue = parseInt(star.dataset.value);
+                    star.classList.toggle('rated', starValue <= newRating);
+                });
+
+                checkCompletion();
+                updateNavigationButtons(); // Re-check buttons after rating
+            }
+        }
+
+        /**
+         * Moves to the next card, skipping any that have already reached a 5-star rating.
+         */
+        function nextCard() {
+            if (currentCardIndex < cards.length - 1) {
+                currentCardIndex++;
+                displayCurrentCard();
+            }
+        }
+
+        /**
+         * Moves to the previous card.
+         */
+        function previousCard() {
+            if (currentCardIndex > 0) {
+                currentCardIndex--;
+                displayCurrentCard();
+            }
+        }
+
+        /**
+         * Updates the disabled state of the navigation buttons.
+         */
+        function updateNavigationButtons() {
+            prevBtn.disabled = currentCardIndex === 0;
+            nextBtn.disabled = currentCardIndex === cards.length - 1;
+
+            // Update flip all button text
+            if (flipAllBtn.dataset.mode === 'backward') {
+                flipAllBtn.textContent = 'Flip All Backward';
+            } else {
+                flipAllBtn.textContent = 'Flip All Forward';
+            }
+        }
+
+        /**
+         * Checks if all cards have reached a 5-star rating and shows a completion message.
+         */
+        function checkCompletion() {
+            const allRatedFive = cards.every(card => card.rating >= 5);
+            completionMessage.style.display = allRatedFive ? 'block' : 'none';
+            
+            // If all are complete, disable navigation
+            if (allRatedFive) {
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                flipAllBtn.disabled = true;
+            } else {
+                flipAllBtn.disabled = false;
+            }
+        }
+
+        /**
+         * Flips all cards sequentially (forward or backward).
+         */
+        function flipAllSequential() {
+            // Prevent multiple rapid clicks
+            if (flipAllBtn.disabled) return;
+            flipAllBtn.disabled = true; 
+            
+            let index = 0;
+            let mode = flipAllBtn.dataset.mode || 'forward'; // 'forward' or 'backward'
+            let delay = 200; // Time in ms between each flip
+
+            if (mode === 'backward') {
+                index = cards.length - 1;
+            }
+
+            const intervalId = setInterval(() => {
+                const cardElement = document.querySelector(`.card[data-index="${index}"]`);
+                if (cardElement) {
+                    // Flip the card
+                    if (mode === 'forward') {
+                        cardElement.classList.add('flipped');
+                        cards[index].flipped = true;
+                    } else {
+                        cardElement.classList.remove('flipped');
+                        cards[index].flipped = false;
+                    }
+                }
+                
+                // Move to the next index
+                if (mode === 'forward') {
+                    index++;
+                    if (index >= cards.length) {
+                        clearInterval(intervalId);
+                        flipAllBtn.dataset.mode = 'backward'; 
+                        flipAllBtn.textContent = 'Flip All Backward';
+                        flipAllBtn.disabled = false;
+                    }
+                } else { // mode === 'backward'
+                    index--;
+                    if (index < 0) {
+                        clearInterval(intervalId);
+                        flipAllBtn.dataset.mode = 'forward';
+                        flipAllBtn.textContent = 'Flip All Forward';
+                        flipAllBtn.disabled = false;
+                    }
+                }
+                
+                // Ensure the current card index follows the sequence
+                if (index >= 0 && index < cards.length) {
+                    currentCardIndex = index;
+                    displayCurrentCard(); 
+                }
+
+            }, delay);
+        }
+
+
+        // --- Event Listeners and Initialization ---
+
+        prevBtn.addEventListener('click', previousCard);
+        nextBtn.addEventListener('click', nextCard);
+        flipAllBtn.addEventListener('click', flipAllSequential);
+
+        // Initial setup
+        renderCards();
+    </script>
+</body>
+</html>
