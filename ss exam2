@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cultural Geography — Exam 2 (Interactive)</title>
+  <style>
+    :root{
+      --bg:#f7f8fb;
+      --card:#ffffff;
+      --muted:#666;
+      --accent:#1f6feb;
+      --correct:#e6f9ea;
+      --incorrect:#ffecec;
+      --correct-border:#2d8a4a;
+      --incorrect-border:#c12b2b;
+    }
+    body{
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#eef2ff 0%,var(--bg) 100%);
+      margin:0;
+      padding:24px;
+      color:#0b1220;
+      -webkit-font-smoothing:antialiased;
+    }
+    .wrap{
+      max-width:900px;
+      margin:0 auto;
+    }
+    header{
+      display:flex;
+      gap:16px;
+      align-items:center;
+      margin-bottom:18px;
+    }
+    h1{
+      font-size:20px;
+      margin:0;
+    }
+    .card{
+      background:var(--card);
+      border-radius:12px;
+      box-shadow:0 6px 18px rgba(20,30,60,0.06);
+      padding:18px;
+      margin-bottom:12px;
+    }
+    .meta{
+      color:var(--muted);
+      font-size:13px;
+    }
+    .question{
+      margin:14px 0;
+      padding:12px;
+      border-radius:8px;
+      border:1px solid #eef2f6;
+    }
+    .question h3{
+      margin:0 0 8px 0;
+      font-size:15px;
+    }
+    .choices{
+      display:grid;
+      gap:8px;
+    }
+    label.choice{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      cursor:pointer;
+      padding:8px;
+      border-radius:6px;
+      border:1px solid transparent;
+      user-select:none;
+    }
+    label.choice input{
+      margin-top:2px;
+    }
+    .controls{
+      display:flex;
+      gap:10px;
+      margin-top:6px;
+      flex-wrap:wrap;
+    }
+    button{
+      background:var(--accent);
+      color:white;
+      border:0;
+      padding:10px 14px;
+      border-radius:8px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    button.secondary{
+      background:#fff;
+      color:var(--accent);
+      border:1px solid rgba(31,111,235,0.12);
+    }
+    .result{
+      margin-top:12px;
+      padding:12px;
+      border-radius:8px;
+      font-weight:600;
+    }
+    .result.good{ background:var(--correct); border:1px solid var(--correct-border); color:var(--correct-border); }
+    .result.bad{ background:var(--incorrect); border:1px solid var(--incorrect-border); color:var(--incorrect-border); }
+    .small{
+      font-size:13px;
+      color:var(--muted);
+    }
+    .answer-key{
+      margin-top:12px;
+      padding:12px;
+      border-radius:8px;
+      background:#fbfdff;
+      border:1px solid #eef6ff;
+    }
+    .q-correct{ background:var(--correct); border:1px solid var(--correct-border); }
+    .q-incorrect{ background:var(--incorrect); border:1px solid var(--incorrect-border); }
+    footer{margin-top:18px; font-size:13px; color:var(--muted); text-align:center;}
+    @media (max-width:600px){
+      body{padding:12px;}
+      header{flex-direction:column;align-items:flex-start;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Cultural Geography — Exam 2 (20 multiple-choice)</h1>
+        <div class="meta">Complete all questions and click <strong>Submit & Grade</strong></div>
+      </div>
+    </header>
+
+    <div id="exam" class="card" role="region" aria-label="Cultural Geography exam">
+      <!-- Questions render here -->
+    </div>
+
+    <div class="card">
+      <div class="controls" role="group" aria-label="exam controls">
+        <button id="submitBtn">Submit & Grade</button>
+        <button id="showAnswersBtn" class="secondary">Show Correct Answers</button>
+        <button id="retakeBtn" class="secondary">Retake / Reset</button>
+        <button id="downloadBtn" class="secondary">Download Results</button>
+      </div>
+
+      <div id="summary" style="margin-top:12px"></div>
+      <div id="answerKeyContainer" style="display:none" class="answer-key"></div>
+    </div>
+
+    <footer>
+      Tip: Use <strong>Tab</strong> to navigate answers and <strong>Enter</strong> to select.
+    </footer>
+  </div>
+
+  <script>
+    // ===== Questions & Answers data (Exam 2) =====
+    const questions = [
+      { q: "Lines of Latitude run which direction on a map or globe?", choices:["North and South","Up and Down","East to West","Long"], answer:2 },
+      { q: "The Prime Meridian is found at 0° longitude and divides the world into which two hemispheres?", choices:["Northern and Southern Hemispheres","Tropic and Temperate Hemispheres","Eastern and Western Hemispheres","Polar and Equatorial Hemispheres"], answer:2 },
+      { q: "What is the word origin of latitude?", choices:["The Greek word for side.","The Latin word for wide or side.","The English word for measurement.","The Latin word for long."], answer:1 },
+      { q: "What does the E or W following a longitude measurement indicate?", choices:["Whether the line of longitude is north or south of the Equator.","Whether the line of longitude is long or short.","Whether the line of longitude is east or west of the Prime Meridian.","Whether the line of longitude is wide or narrow."], answer:2 },
+      { q: "Which geographic term is defined as 'A narrow stretch of land connecting two larger bodies of land' and is a physical feature that opens trade routes by foot or road?", choices:["Oasis","Strait","Delta","Isthmus"], answer:3 },
+      { q: "Which physical feature is described as 'An area that gets very little rain, usually very hot with little amounts of plants,' and is an area where people generally cannot live without access to water?", choices:["Oasis","Desert","Delta","Isthmus"], answer:1 },
+      { q: "Which geographical feature is created when sand, silt, clay, or gravel is dropped at the mouth of a river?", choices:["Isthmus","Strait","Delta","Oasis"], answer:2 },
+      { q: "Which of the following is listed as one of the six elements of culture?", choices:["Climate","Economics","Education","Natural Resources"], answer:1 },
+      { q: "What is the main characteristic of a Constitutional Monarchy?", choices:["The king or queen has complete, unlimited power.","A constitution limits the monarch's (king or queen) power.","It is an unlimited government ruled by religious leaders.","It is ruled by the people."], answer:1 },
+      { q: "Which of the following is a characteristic of an UNLIMITED government?", choices:["Power of the government is limited by a constitution.","Both citizens and the government are restricted by laws.","Government officials are accountable to the people.","Citizens have little or no power."], answer:3 },
+      { q: "The Tigris and Euphrates Rivers, located in Turkey, Syria, and Iraq, as well as the Nile River in Egypt, were vital because they provided:", choices:["Oil and Natural Gas.","Water for irrigation and fertile land.","Protection from invaders.","Access to the open ocean."], answer:1 },
+      { q: "Which statement accurately describes a commonality among countries/cultures in the Middle East?", choices:["They share similar democratic political systems.","They all have an abundance of fresh water.","They share a geography characterized by a shortage of fresh water and dry, arid landscapes.","They all depend on the Nile River."], answer:2 },
+      { q: "Why is oil production in the Middle East becoming more difficult and expensive?", choices:["Conflict has damaged all the refineries.","The oil closer to the Earth's surface has already been extracted, so they must dig deeper.","The region is running out of oil completely.","The demand for oil has decreased."], answer:1 },
+      { q: "The Aswan High Dam is an example of what concept?", choices:["Adaptation to the environment.","Modification of the environment.","Environmental disaster.","Sustainable development."], answer:1 },
+      { q: "A positive effect of the Aswan High Dam is that it:", choices:["Relocated people to better farming areas.","Reduced the amount of electricity produced.","Controls flooding.","Increased the deposition of fertile silt."], answer:2 },
+      { q: "Which two river systems were influential in the development of civilization in the Middle East?", choices:["Yellow and Indus Rivers","Tigris and Euphrates Rivers, and the Nile River","Mississippi and Amazon Rivers","Jordan and Yangtze Rivers"], answer:1 },
+      { q: "What type of government is the Monarchy in which a constitution limits the monarch's power?", choices:["Unlimited Government","Limited Government","Absolute Monarchy","Theocracy"], answer:1 },
+      { q: "What is the geographical reason for the lack of settlement in a desert?", choices:["The land is too fertile.","People can't live in areas without access to water.","The ground is too cold.","It is a narrow stretch of land."], answer:1 },
+      { q: "When assigning a location measurement, which line of measurement is always listed first?", choices:["Latitude","Longitude","Prime Meridian","Equator"], answer:0 },
+      { q: "A negative characteristic of the Aswan High Dam is that:", choices:["It increased flooding in the region.","It stopped the production of electricity.","Cultures were threatened by the water held back by the dam, and monuments had to be relocated.","It reduced the available water year-round."], answer:2 }
+    ];
+
+    // ===== Render the exam =====
+    const examEl = document.getElementById('exam');
+
+    function renderExam() {
+      examEl.innerHTML = '';
+      questions.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'question';
+        div.id = `q${idx}`;
+        div.setAttribute('data-index', idx);
+
+        const qTitle = document.createElement('h3');
+        qTitle.innerHTML = (idx+1) + ". " + item.q;
+        div.appendChild(qTitle);
+
+        const choicesDiv = document.createElement('div');
+        choicesDiv.className = 'choices';
+        choicesDiv.setAttribute('role','radiogroup');
+
+        item.choices.forEach((choiceText, cIdx) => {
+          const choiceId = `q${idx}_c${cIdx}`;
+          const label = document.createElement('label');
+          label.className = 'choice';
+          label.htmlFor = choiceId;
+          label.tabIndex = 0;
+
+          const input = document.createElement('input');
+          input.type = 'radio';
+          input.name = `question${idx}`;
+          input.id = choiceId;
+          input.value = cIdx;
+          input.required = false;
+          input.setAttribute('aria-label', choiceText);
+
+          const span = document.createElement('span');
+          span.textContent = String.fromCharCode(65 + cIdx) + ". " + choiceText;
+
+          label.appendChild(input);
+          label.appendChild(span);
+          choicesDiv.appendChild(label);
+        });
+
+        div.appendChild(choicesDiv);
+        examEl.appendChild(div);
+      });
+    }
+
+    renderExam();
+
+    // ===== Grading logic =====
+    const submitBtn = document.getElementById('submitBtn');
+    const showAnswersBtn = document.getElementById('showAnswersBtn');
+    const retakeBtn = document.getElementById('retakeBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const summaryEl = document.getElementById('summary');
+    const answerKeyContainer = document.getElementById('answerKeyContainer');
+
+    function getUserAnswers(){
+      const answers = [];
+      for(let i=0;i<questions.length;i++){
+        const radios = document.getElementsByName('question'+i);
+        let selected = null;
+        for(const r of radios){
+          if(r.checked){ selected = Number(r.value); break; }
+        }
+        answers.push(selected);
+      }
+      return answers;
+    }
+
+    function grade(){
+      const user = getUserAnswers();
+      let score = 0;
+      const total = questions.length;
+      // grade each
+      for(let i=0;i<questions.length;i++){
+        const qDiv = document.getElementById(`q${i}`);
+        qDiv.classList.remove('q-correct','q-incorrect');
+        qDiv.querySelectorAll('label.choice').forEach(l => {
+          l.style.outline = 'none';
+          l.style.background = '';
+        });
+        const selected = user[i];
+        const correct = questions[i].answer;
+        if(selected !== null && selected !== undefined){
+          if(selected === correct){
+            score++;
+            qDiv.classList.add('q-correct');
+          } else {
+            qDiv.classList.add('q-incorrect');
+          }
+        } else {
+          qDiv.classList.add('q-incorrect');
+        }
+      }
+
+      // show summary
+      const percent = Math.round((score/total)*100);
+      const pass = percent >= 70; // pass threshold
+      summaryEl.innerHTML = `
+        <div class="result ${pass ? 'good' : 'bad'}">
+          Score: ${score} / ${total} — ${percent}% &nbsp; ${pass ? '✅ Passed' : '⛔ Not passed'}
+        </div>
+        <div class="small" style="margin-top:8px">
+          ${user.includes(null) || user.includes(undefined) ? 'Some questions were unanswered and counted as incorrect.' : ''}
+        </div>
+      `;
+
+      // highlight per-question choices
+      for(let i=0;i<questions.length;i++){
+        const qDiv = document.getElementById(`q{${i}}`);
+        const userSel = user[i];
+        const labels = document.getElementById(`q${i}`).querySelectorAll('label.choice');
+        labels.forEach((label, cIdx) => {
+          label.style.border = '1px solid transparent';
+          if(cIdx === questions[i].answer){
+            label.style.border = '2px solid rgba(45,138,74,0.12)';
+          }
+          if(userSel !== null && Number(userSel) === cIdx){
+            label.style.outline = '3px solid rgba(31,111,235,0.12)';
+          }
+        });
+      }
+
+      // Prepare answer key content
+      prepareAnswerKey(user);
+    }
+
+    function prepareAnswerKey(userAnswers){
+      const container = answerKeyContainer;
+      container.innerHTML = '<strong>Answer Key</strong><ol>';
+      for(let i=0;i<questions.length;i++){
+        const correctIndex = questions[i].answer;
+        const correctLetter = String.fromCharCode(65 + correctIndex);
+        const userSel = userAnswers ? userAnswers[i] : null;
+        const userLetter = (userSel === null || userSel === undefined) ? '—' : String.fromCharCode(65 + userSel);
+        container.innerHTML += `<li style="margin:6px 0">${questions[i].q}<br><span class="small">Correct: <strong>${correctLetter}</strong> &nbsp; Your answer: <strong>${userLetter}</strong></span></li>`;
+      }
+      container.innerHTML += '</ol>';
+    }
+
+    // Button events
+    submitBtn.addEventListener('click', () => {
+      grade();
+      answerKeyContainer.style.display = 'block';
+      answerKeyContainer.scrollIntoView({behavior:'smooth'});
+    });
+
+    showAnswersBtn.addEventListener('click', () => {
+      const user = getUserAnswers();
+      prepareAnswerKey(user);
+      answerKeyContainer.style.display = answerKeyContainer.style.display === 'block' ? 'none' : 'block';
+      answerKeyContainer.scrollIntoView({behavior:'smooth'});
+    });
+
+    retakeBtn.addEventListener('click', () => {
+      for(let i=0;i<questions.length;i++){
+        const radios = document.getElementsByName('question'+i);
+        radios.forEach(r => r.checked = false);
+        const qDiv = document.getElementById(`q${i}`);
+        qDiv.classList.remove('q-correct','q-incorrect');
+        qDiv.querySelectorAll('label.choice').forEach(l => {
+          l.style.outline = 'none';
+          l.style.background = '';
+          l.style.border = '1px solid transparent';
+        });
+      }
+      summaryEl.innerHTML = '';
+      answerKeyContainer.style.display = 'none';
+      answerKeyContainer.innerHTML = '';
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const user = getUserAnswers();
+      let score = 0;
+      for(let i=0;i<questions.length;i++){
+        if(user[i] === questions[i].answer) score++;
+      }
+      const percent = Math.round((score/questions.length)*100);
+
+      let report = `Cultural Geography — Exam 2 Results\nScore: ${score}/${questions.length} (${percent}%)\n\n`;
+      for(let i=0;i<questions.length;i++){
+        const correct = String.fromCharCode(65 + questions[i].answer);
+        const userA = (user[i]===null || user[i]===undefined) ? '—' : String.fromCharCode(65 + user[i]);
+        report += `${i+1}. ${questions[i].q}\n   Correct: ${correct}  Your: ${userA}\n`;
+      }
+
+      const blob = new Blob([report], {type: 'text/plain'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Exam2_results.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // keyboard accessibility: allow label "click" via Enter when label focused
+    document.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && document.activeElement && document.activeElement.matches('label.choice')){
+        document.activeElement.querySelector('input')?.click();
+        e.preventDefault();
+      }
+    });
+
+    // Prepare initial (hidden) answer key
+    prepareAnswerKey(null);
+  </script>
+</body>
+</html>
