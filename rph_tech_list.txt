@@ -1,62 +1,78 @@
 [
   {
+    "id": 1759463440545,
     "role": "LICENSE",
-    "name": "DEA License",
-    "licenseDate": "2025-09-23",
+    "name": "CLIA",
+    "licenseDate": "2025-10-02",
     "cprDate": ""
   },
   {
+    "id": 1759463413852,
     "role": "LICENSE",
-    "name": "Pharmacy LIcense",
+    "name": "DEA",
+    "licenseDate": "2025-10-02",
+    "cprDate": ""
+  },
+  {
+    "id": 1759463383649,
+    "role": "LICENSE",
+    "name": "State",
     "licenseDate": "2027-02-28",
     "cprDate": ""
   },
   {
     "role": "RPH",
-    "name": "Leslie Trinh",
-    "licenseDate": "2025-10-31",
+    "name": "Caitlin Feeley",
+    "licenseDate": "2027-11-30",
     "cprDate": ""
+  },
+  {
+    "id": 1759463175739,
+    "role": "RPH",
+    "name": "Hung Dang",
+    "licenseDate": "2027-09-30",
+    "cprDate": "2026-11-14"
   },
   {
     "role": "RPH",
-    "name": "Patricia Santos",
-    "licenseDate": "2027-07-31",
+    "name": "Subha George James",
+    "licenseDate": "2027-08-31",
     "cprDate": ""
   },
   {
     "role": "TECH",
-    "name": "Manuel Salvador Macedo Mendoza",
-    "licenseDate": "2026-01-31",
+    "name": "Denise Ingram",
+    "licenseDate": "2027-09-30",
     "cprDate": ""
   },
   {
     "role": "TECH",
-    "name": "Meagan Greeley",
-    "licenseDate": "2025-09-30",
+    "name": "Johanna Wise",
+    "licenseDate": "2025-11-30",
     "cprDate": ""
   },
   {
     "role": "TECH",
-    "name": "Michael Arthur Leung",
-    "licenseDate": "2026-09-30",
+    "name": "Marilyn Sanchez",
+    "licenseDate": "2028-03-31",
     "cprDate": ""
   },
   {
     "role": "TECH",
-    "name": "Mikiah Dawn Gates",
-    "licenseDate": "2027-07-31",
-    "cprDate": ""
-  },
-  {
-    "role": "TECH",
-    "name": "Rochelle Lynn Higbie",
-    "licenseDate": "2025-10-31",
-    "cprDate": ""
-  },
-  {
-    "role": "TECH",
-    "name": "Rylee Grace Hausman",
+    "name": "Soukhanya Phongsa",
     "licenseDate": "2027-06-30",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Waad Hussien",
+    "licenseDate": "2026-10-31",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Ward Rachel",
+    "licenseDate": "2026-07-31",
     "cprDate": ""
   }
 ]
