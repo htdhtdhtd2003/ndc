@@ -22,9 +22,9 @@
   },
   {
     "role": "RPH",
-    "name": "Caitlin Feeley",
+    "name": "Caitlin Mary Feeley",
     "licenseDate": "2027-11-30",
-    "cprDate": ""
+    "cprDate": "2025-10-03"
   },
   {
     "id": 1759463175739,
@@ -36,13 +36,27 @@
   {
     "role": "RPH",
     "name": "Subha George James",
-    "licenseDate": "2027-08-31",
-    "cprDate": ""
+    "licenseDate": "2027-05-31",
+    "cprDate": "2025-10-03"
   },
   {
     "role": "TECH",
     "name": "Johanna Wise",
     "licenseDate": "2025-11-30",
+    "cprDate": ""
+  },
+  {
+    "id": 1759469525351,
+    "role": "TECH",
+    "name": "Madilyn Swann",
+    "licenseDate": "2026-04-30",
+    "cprDate": ""
+  },
+  {
+    "id": 1759469411976,
+    "role": "TECH",
+    "name": "Sowjanya Kandregula",
+    "licenseDate": "2027-05-31",
     "cprDate": ""
   },
   {
@@ -55,6 +69,13 @@
     "role": "TECH",
     "name": "Waad Hussien",
     "licenseDate": "2026-10-31",
+    "cprDate": ""
+  },
+  {
+    "id": 1759469479391,
+    "role": "TECH",
+    "name": "Wahid Rasul",
+    "licenseDate": "2026-07-31",
     "cprDate": ""
   }
 ]
