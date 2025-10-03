@@ -41,38 +41,20 @@
   },
   {
     "role": "TECH",
-    "name": "Denise Ingram",
-    "licenseDate": "2027-09-30",
-    "cprDate": ""
-  },
-  {
-    "role": "TECH",
     "name": "Johanna Wise",
     "licenseDate": "2025-11-30",
     "cprDate": ""
   },
   {
     "role": "TECH",
-    "name": "Marilyn Sanchez",
-    "licenseDate": "2028-03-31",
-    "cprDate": ""
-  },
-  {
-    "role": "TECH",
-    "name": "Soukhanya Phongsa",
-    "licenseDate": "2027-06-30",
+    "name": "Terri Denise Ingram",
+    "licenseDate": "2027-09-30",
     "cprDate": ""
   },
   {
     "role": "TECH",
     "name": "Waad Hussien",
     "licenseDate": "2026-10-31",
-    "cprDate": ""
-  },
-  {
-    "role": "TECH",
-    "name": "Ward Rachel",
-    "licenseDate": "2026-07-31",
     "cprDate": ""
   }
 ]
