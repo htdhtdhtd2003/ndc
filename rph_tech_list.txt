@@ -3,20 +3,27 @@
     "id": 1759463440545,
     "role": "LICENSE",
     "name": "CLIA",
-    "licenseDate": "2025-10-02",
+    "licenseDate": "2026-10-17",
     "cprDate": ""
   },
   {
     "id": 1759463413852,
     "role": "LICENSE",
-    "name": "DEA",
-    "licenseDate": "2025-10-02",
+    "name": "DEA (Control)",
+    "licenseDate": "2025-12-31",
+    "cprDate": ""
+  },
+  {
+    "id": 1759781418012,
+    "role": "LICENSE",
+    "name": "METH",
+    "licenseDate": "2026-05-31",
     "cprDate": ""
   },
   {
     "id": 1759463383649,
     "role": "LICENSE",
-    "name": "State",
+    "name": "Texas State Board of Pharmacy",
     "licenseDate": "2027-02-28",
     "cprDate": ""
   },
@@ -24,7 +31,7 @@
     "role": "RPH",
     "name": "Caitlin Mary Feeley",
     "licenseDate": "2027-11-30",
-    "cprDate": "2025-10-03"
+    "cprDate": "2026-02-26"
   },
   {
     "id": 1759463175739,
@@ -37,7 +44,7 @@
     "role": "RPH",
     "name": "Subha George James",
     "licenseDate": "2027-05-31",
-    "cprDate": "2025-10-03"
+    "cprDate": "2027-03-31"
   },
   {
     "role": "TECH",
@@ -50,7 +57,7 @@
     "role": "TECH",
     "name": "Madilyn Swann",
     "licenseDate": "2026-04-30",
-    "cprDate": ""
+    "cprDate": "2026-04-18"
   },
   {
     "id": 1759469411976,
