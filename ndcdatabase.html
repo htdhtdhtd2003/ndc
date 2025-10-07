@@ -3,326 +3,236 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Drug Scanner + GitHub Save + Camera</title>
+<title>Drug Location Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <style>
-  body { font-family: system-ui, Arial, sans-serif; background: #0e1726; color: #e8ecf5; margin: 0; padding: 18px; }
-  h1 { margin-top:0; font-size:20px; }
-  .card { background: rgba(255,255,255,0.05); padding:12px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.2); margin-bottom:12px; }
-  label { font-size:13px; color:#aab3c0; }
-  input, button { padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: inherit; }
-  button { cursor:pointer; }
-  table { width:100%; border-collapse: collapse; margin-top:12px; }
-  th, td { padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.05); }
-  th { color:#99a2b0; text-align:left; }
-  .swatch { width:28px; height:18px; border-radius:4px; }
-  .active-location { background:#1a2333; border:1px solid #334155; padding:10px; border-radius:8px; margin-top:10px; }
-  .active-location strong { color:#38bdf8; }
-  video { width:100%; border-radius:8px; display:none; margin-top:10px; }
-  #torchBtn { display:none; margin-top:8px; }
+    body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        background: #f4f4f9;
+        color: #333;
+    }
+    input, button {
+        padding: 8px;
+        margin: 5px;
+        font-size: 16px;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    th, td {
+        border: 1px solid #aaa;
+        padding: 8px;
+        text-align: center;
+    }
+    tr.selected {
+        background-color: #d3f4ff;
+    }
+    .qr-container {
+        display: flex;
+        gap: 20px;
+        margin-top: 20px;
+    }
 </style>
 </head>
 <body>
-<h1>Drug Location Scanner</h1>
 
-<div class="card">
-  <label>Section #</label>
-  <input id="section" type="number" min="1" value="1">
-  <label>Column #</label>
-  <input id="column" type="number" min="1" value="1">
-  <label>Color</label>
-  <input id="color" type="color" value="#60a5fa">
-  <button id="setLocationBtn">Set Location</button>
+<h2>Drug Location Tracker</h2>
 
-  <div id="activeLocation" class="active-location" style="display:none;">
-    <strong>Active Location:</strong>
-    <span id="locLabel"></span>
-    <button id="changeLocationBtn">Change</button>
-    <button id="stopScanBtn">Stop</button>
-  </div>
-  <p id="status">Waiting for scan...</p>
+<div>
+    <label>11-digit NDC:</label>
+    <input type="text" id="ndcInput" maxlength="11" placeholder="Scan 11-digit NDC">
+
+    <label>13-digit UPC:</label>
+    <input type="text" id="upcInput" maxlength="13" placeholder="Scan 13-digit UPC">
+
+    <label>Section:</label>
+    <input list="sectionList" id="section" placeholder="Enter or select Section">
+    <datalist id="sectionList"></datalist>
+
+    <label>Column:</label>
+    <input list="columnList" id="column" placeholder="Enter or select Column">
+    <datalist id="columnList"></datalist>
+
+    <label>Color:</label>
+    <input list="colorList" id="color" placeholder="Enter or select Color">
+    <datalist id="colorList"></datalist>
+
+    <button id="setLocation">Set Location</button>
+    <button id="saveFile">Save Backup</button>
+    <input type="file" id="openFile" style="display:none">
+    <button onclick="document.getElementById('openFile').click()">Open Backup</button>
 </div>
 
-<div class="card">
-  <label>Scan or Type UPC/NDC:</label><br>
-  <input id="scanInput" type="text" placeholder="Scan or type code" autofocus>
-  <button id="startCamera">📷 Start Camera Scanner</button>
-  <button id="torchBtn">💡 Toggle Flashlight</button>
-  <video id="preview" autoplay muted playsinline></video>
-</div>
-
-<div class="card">
-  <button id="saveGitHubBtn">Save to GitHub</button>
-  <button id="lockDbBtn">Lock Database</button>
-</div>
-
-<table id="logTable">
-  <thead>
-    <tr><th>#</th><th>Code</th><th>Type</th><th>Section</th><th>Column</th><th>Color</th><th>Time</th></tr>
-  </thead>
-  <tbody></tbody>
+<table id="drugTable">
+    <thead>
+        <tr>
+            <th>NDC/UPC</th>
+            <th>Section</th>
+            <th>Column</th>
+            <th>Color</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
 </table>
 
+<div class="qr-container">
+    <div>
+        <h3>Drug QR Code</h3>
+        <canvas id="qrDrug"></canvas>
+    </div>
+    <div>
+        <h3>Location QR Code</h3>
+        <canvas id="qrLocation"></canvas>
+    </div>
+</div>
+
 <script>
-const githubDB = "https://htdhtdhtd2003.github.io/ndc/database.json";
-let githubData = [];
-let localData = JSON.parse(localStorage.getItem('drug_location_db') || '[]');
-let currentLocation = null;
-let githubToken = null;
-let cameraActive = false;
-let codeReader = null;
-let track = null;
-let torchOn = false;
-
-// Load GitHub DB
-async function loadGitHub() {
-  try {
-    const res = await fetch(githubDB + '?t=' + Date.now());
-    githubData = await res.json();
-    console.log('GitHub DB loaded:', githubData.length);
-  } catch(err){ console.error(err); }
-}
-loadGitHub();
-setInterval(loadGitHub, 3*60*1000);
-
-// Save local
-function saveLocalDB(){ localStorage.setItem('drug_location_db', JSON.stringify(localData)); }
-
-// Render table
-function renderTable(){
-  const body = document.querySelector('#logTable tbody');
-  body.innerHTML='';
-  localData.forEach((it,i)=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${i+1}</td><td>${it.code}</td><td>${it.type}</td><td>${it.section}</td><td>${it.column}</td><td><div class="swatch" style="background:${it.color}"></div></td><td>${new Date(it.time).toLocaleTimeString()}</td>`;
-    body.appendChild(tr);
-  });
-}
-renderTable();
-
-function classify(code){
-  const num=code.replace(/\D/g,'');
-  if(/^\d{12}$/.test(num))return'UPC';
-  if(/^\d{10,11}$/.test(num))return'NDC';
-  return 'UNKNOWN';
-}
-
-function speak(text){
-  if(!('speechSynthesis' in window))return;
-  const u=new SpeechSynthesisUtterance(text);
-  u.rate=1; u.pitch=1;
-  window.speechSynthesis.speak(u);
-}
-
-function getColorName(hex){
-  const map={"#60a5fa":"Blue","#f87171":"Red","#34d399":"Green","#fbbf24":"Yellow","#a78bfa":"Purple","#f472b6":"Pink","#facc15":"Gold","#10b981":"Teal"};
-  return map[hex.toLowerCase()]||"Unknown";
-}
-
-function addOrUpdate(code){
-  const input=document.getElementById('scanInput');
-  if(!currentLocation){
-    document.getElementById('status').textContent='⚠️ Set location first.';
-    input.value=''; input.focus(); return;
-  }
-  const existing=localData.find(it=>it.code===code);
-  if(existing){
-    const move=confirm(`Code ${code} already exists.\nMove to new location?`);
-    if(move){
-      existing.section=currentLocation.section;
-      existing.column=currentLocation.column;
-      existing.color=currentLocation.color;
-      existing.time=Date.now();
-      document.getElementById('status').textContent=`✅ Moved ${code}.`;
-    } else document.getElementById('status').textContent=`⏩ Duplicate ignored.`;
-  } else{
-    localData.push({
-      code, type: classify(code), section: currentLocation.section,
-      column: currentLocation.column, color: currentLocation.color, time: Date.now()
-    });
-    document.getElementById('status').textContent=`Added ${code} at Section ${currentLocation.section}, Column ${currentLocation.column}`;
-  }
-  saveLocalDB(); renderTable();
-  speak(`Drug found at Section ${currentLocation.section}, Column ${currentLocation.column}, Color ${getColorName(currentLocation.color)}`);
-  input.value=''; input.focus();
-}
-
-// Location buttons
-document.getElementById('setLocationBtn').onclick=()=>{
-  const s=document.getElementById('section').value;
-  const c=document.getElementById('column').value;
-  const color=document.getElementById('color').value;
-  currentLocation={section:s,column:c,color};
-  document.getElementById('activeLocation').style.display='block';
-  document.getElementById('locLabel').textContent=`Section ${s}, Column ${c}`;
-  document.getElementById('status').textContent='Ready to scan.';
-  document.getElementById('scanInput').focus();
-};
-document.getElementById('changeLocationBtn').onclick=()=>{
-  currentLocation=null;
-  document.getElementById('activeLocation').style.display='none';
-  document.getElementById('status').textContent='Location cleared.';
-  document.getElementById('scanInput').focus();
-};
-document.getElementById('stopScanBtn').onclick=()=>{
-  currentLocation=null;
-  document.getElementById('status').textContent='Scanning stopped.';
-  document.getElementById('scanInput').focus();
-};
-
-// Scan input
-document.getElementById('scanInput').addEventListener('keypress', e=>{
-  if(e.key==='Enter'){ e.preventDefault(); const code=e.target.value.trim(); if(code) addOrUpdate(code);}
+// --- Suppress F1 to F14 ---
+document.addEventListener('keydown', function(e) {
+    if(e.key.startsWith('F') && parseInt(e.key.substring(1)) >= 1 && parseInt(e.key.substring(1)) <= 14) {
+        e.preventDefault();
+    }
 });
 
-// GitHub save with token validation
-document.getElementById('saveGitHubBtn').onclick = async () => {
-  const status = document.getElementById('status');
-  if (!githubToken) {
-    githubToken = prompt("Enter GitHub Personal Access Token (with repo permissions):");
-    if (!githubToken) return alert("Token required.");
-  }
+let currentLocation = { section: '', column: '', color: '' };
 
-  status.textContent = "🔄 Validating token...";
-  if (!(await validateToken(githubToken))) {
-    alert("❌ Invalid GitHub token or expired token.");
-    githubToken = null;
-    status.textContent = "❌ Token invalid.";
-    return;
-  }
-
-  status.textContent = "⏳ Saving to GitHub...";
-  await saveToGitHub(githubToken);
-  status.textContent = "✅ GitHub database updated.";
-  document.getElementById('scanInput').focus();
+// --- Load last location from localStorage ---
+window.onload = function() {
+    const savedLocation = JSON.parse(localStorage.getItem('lastLocation'));
+    if (savedLocation) {
+        currentLocation = savedLocation;
+        document.getElementById('section').value = savedLocation.section;
+        document.getElementById('column').value = savedLocation.column;
+        document.getElementById('color').value = savedLocation.color;
+    }
+    document.getElementById('ndcInput').focus();
 };
 
-document.getElementById('lockDbBtn').onclick=()=>{
-  githubToken=null;
-  alert("✅ Database locked. GitHub token cleared.");
-};
+// --- Set location ---
+document.getElementById('setLocation').addEventListener('click', () => {
+    setLocationFromInputs();
+});
 
-// Validate GitHub token
-async function validateToken(token){
-  try{
-    const res = await fetch("https://api.github.com/user", { headers:{Authorization:`token ${token}`} });
-    return res.ok;
-  } catch { return false; }
+// --- Automatic scan save for NDC (11 digits) ---
+document.getElementById('ndcInput').addEventListener('input', function() {
+    if(this.value.length === 11) {
+        saveCodeToTable(this.value);
+        this.value = '';
+        this.focus();
+    }
+});
+
+// --- Automatic scan save for UPC (13 digits) ---
+document.getElementById('upcInput').addEventListener('input', function() {
+    if(this.value.length === 13) {
+        saveCodeToTable(this.value);
+        this.value = '';
+        this.focus();
+    }
+});
+
+// --- Save code to table ---
+function saveCodeToTable(code) {
+    if (!currentLocation.section || !currentLocation.column || !currentLocation.color) {
+        alert('Please set the location first!');
+        return;
+    }
+    let tbody = document.getElementById('drugTable').querySelector('tbody');
+    let tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>${code}</td>
+        <td>${currentLocation.section}</td>
+        <td>${currentLocation.column}</td>
+        <td>${currentLocation.color}</td>
+    `;
+    tr.addEventListener('click', () => {
+        document.querySelectorAll('#drugTable tr').forEach(r => r.classList.remove('selected'));
+        tr.classList.add('selected');
+        generateQRCode('qrDrug', code);
+        generateQRCode('qrLocation', `${currentLocation.section}-${currentLocation.column}-${currentLocation.color}`);
+    });
+    tbody.appendChild(tr);
 }
 
-// GitHub upload
-async function saveToGitHub(token){
-  const owner = "htdhtdhtd2003";
-  const repo = "ndc";
-  const path = "database.json";
-  const branch = "main";
-
-  try {
-    let sha = null;
-    const getRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`, {
-      headers: { Authorization: `token ${token}` }
+// --- Generate QR code ---
+function generateQRCode(canvasId, text) {
+    QRCode.toCanvas(document.getElementById(canvasId), text, { width: 150 }, function (error) {
+        if (error) console.error(error);
     });
+}
 
-    if (getRes.status === 404) {
-      console.warn("database.json not found — creating new file.");
-    } else if (getRes.ok) {
-      const data = await getRes.json();
-      sha = data.sha;
+// --- Set location from input fields ---
+function setLocationFromInputs() {
+    const section = document.getElementById('section').value.trim();
+    const column = document.getElementById('column').value.trim();
+    const color = document.getElementById('color').value.trim();
+
+    if(!section || !column || !color) {
+        alert('Please enter Section, Column, and Color.');
+        return;
     }
 
-    const updatedContent = btoa(JSON.stringify(localData, null, 2));
-    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
-      method: "PUT",
-      headers: {
-        Authorization: `token ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        message: "Update database.json via Drug Scanner",
-        content: updatedContent,
-        sha,
-        branch
-      })
-    });
+    currentLocation = { section, column, color };
+    localStorage.setItem('lastLocation', JSON.stringify(currentLocation)); // Save to localStorage
 
-    const result = await res.json();
-    if (!res.ok) alert(`❌ Save failed: ${result.message || "Unknown error"}`);
-    else alert("✅ database.json saved successfully!");
-  } catch (err) {
-    console.error("GitHub save error:", err);
-    alert("❌ GitHub API error. Check console for details.");
-  }
+    // Add to datalists for autocomplete
+    addToDatalist('sectionList', section);
+    addToDatalist('columnList', column);
+    addToDatalist('colorList', color);
+
+    alert('Location set! Now scanning will use this location.');
+    document.getElementById('ndcInput').focus();
 }
 
-// --- 📷 CAMERA BARCODE SCANNER (final reliable version) ---
-document.getElementById('startCamera').onclick = async () => {
-  const video = document.getElementById('preview');
-  const torchBtn = document.getElementById('torchBtn');
+// --- Add value to datalist for autocomplete ---
+function addToDatalist(listId, value) {
+    const datalist = document.getElementById(listId);
+    if (![...datalist.options].some(opt => opt.value === value)) {
+        const option = document.createElement('option');
+        option.value = value;
+        datalist.appendChild(option);
+    }
+}
 
-  if (cameraActive) {
-    codeReader?.reset();
-    if (track) track.stop();
-    torchBtn.style.display = 'none';
-    video.style.display = 'none';
-    document.getElementById('startCamera').textContent = '📷 Start Camera Scanner';
-    document.getElementById('status').textContent = 'Camera stopped.';
-    cameraActive = false;
-    return;
-  }
+// --- Save table to file ---
+document.getElementById('saveFile').addEventListener('click', () => {
+    const tbody = document.getElementById('drugTable').querySelector('tbody');
+    const data = [...tbody.rows].map(row => ({
+        code: row.cells[0].innerText,
+        section: row.cells[1].innerText,
+        column: row.cells[2].innerText,
+        color: row.cells[3].innerText
+    }));
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'drug_backup.json';
+    a.click();
+    URL.revokeObjectURL(url);
+});
 
-  document.getElementById('status').textContent = "🔍 Checking camera access...";
-  try {
-    await navigator.mediaDevices.getUserMedia({ video: true });
-  } catch (err) {
-    alert("🚫 Camera permission denied.");
-    return;
-  }
-
-  try {
-    const { BrowserMultiFormatReader } = await import("https://unpkg.com/@zxing/browser@latest");
-    codeReader = new BrowserMultiFormatReader();
-
-    const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-    console.log("Camera devices:", devices);
-
-    const backCam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0];
-    const constraints = backCam
-      ? { video: { deviceId: backCam.deviceId } }
-      : { video: { facingMode: "environment" } };
-
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    video.srcObject = stream;
-    video.style.display = 'block';
-    cameraActive = true;
-    document.getElementById('startCamera').textContent = '🛑 Stop Camera Scanner';
-    document.getElementById('status').textContent = '📸 Camera active. Aim at barcode.';
-    track = stream.getVideoTracks()[0];
-
-    const caps = track.getCapabilities();
-    if (caps.torch) torchBtn.style.display = 'inline-block';
-
-    codeReader.decodeFromVideoDevice(backCam?.deviceId || null, 'preview', (result, err) => {
-      if (result) addOrUpdate(result.text);
-    });
-
-  } catch (err) {
-    console.error("Camera startup error:", err);
-    alert("❌ Camera failed to start. Try closing other apps using the camera or reload the page.");
-    document.getElementById('status').textContent = "❌ Camera failed to start.";
-  }
-};
-
-// 💡 Flashlight toggle
-document.getElementById('torchBtn').onclick = () => {
-  if (!track) return;
-  const capabilities = track.getCapabilities();
-  if (!capabilities.torch) return alert("⚠️ No flashlight support on this camera.");
-  torchOn = !torchOn;
-  track.applyConstraints({ advanced: [{ torch: torchOn }] });
-  document.getElementById('torchBtn').textContent = torchOn ? "💡 Flashlight ON" : "💡 Flashlight OFF";
-};
-
-// Block F1–F12
-window.addEventListener('keydown',e=>{if(/^F\d+$/.test(e.key)){e.preventDefault();e.stopPropagation();return false;}});
+// --- Open backup file ---
+document.getElementById('openFile').addEventListener('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            const tbody = document.getElementById('drugTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            data.forEach(item => saveCodeToTable(item.code));
+        } catch(err) {
+            alert('Invalid file format');
+        }
+    }
+    reader.readAsText(file);
+});
 </script>
+
 </body>
 </html>
