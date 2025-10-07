@@ -18,6 +18,7 @@
   .active-location { background:#1a2333; border:1px solid #334155; padding:10px; border-radius:8px; margin-top:10px; }
   .active-location strong { color:#38bdf8; }
   video { width:100%; border-radius:8px; display:none; margin-top:10px; }
+  #torchBtn { display:none; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -45,6 +46,7 @@
   <label>Scan or Type UPC/NDC:</label><br>
   <input id="scanInput" type="text" placeholder="Scan or type code" autofocus>
   <button id="startCamera">📷 Start Camera Scanner</button>
+  <button id="torchBtn">💡 Toggle Flashlight</button>
   <video id="preview" autoplay muted playsinline></video>
 </div>
 
@@ -68,6 +70,8 @@ let currentLocation = null;
 let githubToken = null;
 let cameraActive = false;
 let codeReader = null;
+let track = null;
+let torchOn = false;
 
 // Load GitHub DB
 async function loadGitHub() {
@@ -249,33 +253,61 @@ async function saveToGitHub(token){
   }
 }
 
-// --- 📷 CAMERA BARCODE SCANNER ---
+// --- 📷 CAMERA BARCODE SCANNER (fixed version) ---
 document.getElementById('startCamera').onclick = async () => {
   const video = document.getElementById('preview');
+  const torchBtn = document.getElementById('torchBtn');
+
   if (cameraActive) {
     codeReader?.reset();
+    track?.stop();
+    torchBtn.style.display = 'none';
     video.style.display = 'none';
     document.getElementById('startCamera').textContent = '📷 Start Camera Scanner';
     cameraActive = false;
     return;
   }
-  document.getElementById('status').textContent = "🔍 Starting camera...";
+
+  document.getElementById('status').textContent = "🔍 Requesting camera access...";
   try {
+    await navigator.mediaDevices.getUserMedia({ video: true });
+
     const { BrowserMultiFormatReader } = await import("https://unpkg.com/@zxing/browser@latest");
     codeReader = new BrowserMultiFormatReader();
+    const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+    const backCam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0];
+    if (!backCam) throw new Error("No camera found");
+
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: backCam.deviceId, facingMode: "environment" } });
+    video.srcObject = stream;
+    track = stream.getVideoTracks()[0];
     video.style.display = 'block';
+    torchBtn.style.display = 'inline-block';
     cameraActive = true;
     document.getElementById('startCamera').textContent = '🛑 Stop Camera Scanner';
-    codeReader.decodeFromVideoDevice(null, 'preview', (result, err) => {
-      if (result) {
-        addOrUpdate(result.text);
-      }
+    document.getElementById('status').textContent = "📸 Camera active. Aim at barcode.";
+
+    codeReader.decodeFromVideoDevice(backCam.deviceId, 'preview', (result, err) => {
+      if (result) addOrUpdate(result.text);
     });
-    document.getElementById('status').textContent = "📸 Camera scanner active. Aim at barcode.";
+
   } catch (err) {
-    console.error(err);
-    document.getElementById('status').textContent = "❌ Camera failed to start.";
+    console.error("Camera start error:", err);
+    document.getElementById('status').textContent = "❌ Camera failed to start. Check HTTPS or permissions.";
   }
+};
+
+// 💡 Flashlight toggle
+document.getElementById('torchBtn').onclick = () => {
+  if (!track) return;
+  const capabilities = track.getCapabilities();
+  if (!capabilities.torch) {
+    alert("⚠️ Flashlight not supported on this device.");
+    return;
+  }
+  torchOn = !torchOn;
+  track.applyConstraints({ advanced: [{ torch: torchOn }] });
+  document.getElementById('torchBtn').textContent = torchOn ? "💡 Flashlight ON" : "💡 Flashlight OFF";
 };
 
 // Block F1–F12
