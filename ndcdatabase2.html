@@ -153,7 +153,13 @@ document.getElementById('setLocation').addEventListener('click', () => {
 
 // --- Automatic scan save for NDC (11 digits) ---
 document.getElementById('ndcInput').addEventListener('input', function() {
-    if(this.value.length === 11) {
+    if (this.value.length > 11) {
+        alert("⚠️ Too many digits! Please rescan the 11-digit NDC.");
+        this.value = '';
+        this.focus();
+        return;
+    }
+    if (this.value.length === 11) {
         saveCodeToTable(this.value);
         this.value = '';
         this.focus();
