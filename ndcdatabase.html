@@ -253,47 +253,61 @@ async function saveToGitHub(token){
   }
 }
 
-// --- 📷 CAMERA BARCODE SCANNER (fixed version) ---
+// --- 📷 CAMERA BARCODE SCANNER (final reliable version) ---
 document.getElementById('startCamera').onclick = async () => {
   const video = document.getElementById('preview');
   const torchBtn = document.getElementById('torchBtn');
 
   if (cameraActive) {
     codeReader?.reset();
-    track?.stop();
+    if (track) track.stop();
     torchBtn.style.display = 'none';
     video.style.display = 'none';
     document.getElementById('startCamera').textContent = '📷 Start Camera Scanner';
+    document.getElementById('status').textContent = 'Camera stopped.';
     cameraActive = false;
     return;
   }
 
-  document.getElementById('status').textContent = "🔍 Requesting camera access...";
+  document.getElementById('status').textContent = "🔍 Checking camera access...";
   try {
     await navigator.mediaDevices.getUserMedia({ video: true });
+  } catch (err) {
+    alert("🚫 Camera permission denied.");
+    return;
+  }
 
+  try {
     const { BrowserMultiFormatReader } = await import("https://unpkg.com/@zxing/browser@latest");
     codeReader = new BrowserMultiFormatReader();
-    const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-    const backCam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0];
-    if (!backCam) throw new Error("No camera found");
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: backCam.deviceId, facingMode: "environment" } });
+    const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+    console.log("Camera devices:", devices);
+
+    const backCam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0];
+    const constraints = backCam
+      ? { video: { deviceId: backCam.deviceId } }
+      : { video: { facingMode: "environment" } };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = stream;
-    track = stream.getVideoTracks()[0];
     video.style.display = 'block';
-    torchBtn.style.display = 'inline-block';
     cameraActive = true;
     document.getElementById('startCamera').textContent = '🛑 Stop Camera Scanner';
-    document.getElementById('status').textContent = "📸 Camera active. Aim at barcode.";
+    document.getElementById('status').textContent = '📸 Camera active. Aim at barcode.';
+    track = stream.getVideoTracks()[0];
 
-    codeReader.decodeFromVideoDevice(backCam.deviceId, 'preview', (result, err) => {
+    const caps = track.getCapabilities();
+    if (caps.torch) torchBtn.style.display = 'inline-block';
+
+    codeReader.decodeFromVideoDevice(backCam?.deviceId || null, 'preview', (result, err) => {
       if (result) addOrUpdate(result.text);
     });
 
   } catch (err) {
-    console.error("Camera start error:", err);
-    document.getElementById('status').textContent = "❌ Camera failed to start. Check HTTPS or permissions.";
+    console.error("Camera startup error:", err);
+    alert("❌ Camera failed to start. Try closing other apps using the camera or reload the page.");
+    document.getElementById('status').textContent = "❌ Camera failed to start.";
   }
 };
 
@@ -301,10 +315,7 @@ document.getElementById('startCamera').onclick = async () => {
 document.getElementById('torchBtn').onclick = () => {
   if (!track) return;
   const capabilities = track.getCapabilities();
-  if (!capabilities.torch) {
-    alert("⚠️ Flashlight not supported on this device.");
-    return;
-  }
+  if (!capabilities.torch) return alert("⚠️ No flashlight support on this camera.");
   torchOn = !torchOn;
   track.applyConstraints({ advanced: [{ torch: torchOn }] });
   document.getElementById('torchBtn').textContent = torchOn ? "💡 Flashlight ON" : "💡 Flashlight OFF";
