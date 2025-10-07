@@ -21,13 +21,6 @@
     "cprDate": ""
   },
   {
-    "id": 1759835639869,
-    "role": "LICENSE",
-    "name": "Test",
-    "licenseDate": "2025-10-01",
-    "cprDate": ""
-  },
-  {
     "id": 1759463383649,
     "role": "LICENSE",
     "name": "Texas State Board of Pharmacy",
