@@ -41,14 +41,23 @@
 
 <div class="controls">
   <input type="text" id="ndcInput" placeholder="Scan or enter 11-digit NDC" maxlength="11" autofocus>
+
   <select id="sectionSelect">
     <option value="">Select Section</option>
-    ${Array.from({length:20}, (_,i)=>`<option value="Section ${i+1}">Section ${i+1}</option>`).join('')}
+    <option>Section 1</option><option>Section 2</option><option>Section 3</option><option>Section 4</option><option>Section 5</option>
+    <option>Section 6</option><option>Section 7</option><option>Section 8</option><option>Section 9</option><option>Section 10</option>
+    <option>Section 11</option><option>Section 12</option><option>Section 13</option><option>Section 14</option><option>Section 15</option>
+    <option>Section 16</option><option>Section 17</option><option>Section 18</option><option>Section 19</option><option>Section 20</option>
   </select>
+
   <select id="columnSelect">
     <option value="">Select Column</option>
-    ${Array.from({length:20}, (_,i)=>`<option value="Column ${i+1}">Column ${i+1}</option>`).join('')}
+    <option>Column 1</option><option>Column 2</option><option>Column 3</option><option>Column 4</option><option>Column 5</option>
+    <option>Column 6</option><option>Column 7</option><option>Column 8</option><option>Column 9</option><option>Column 10</option>
+    <option>Column 11</option><option>Column 12</option><option>Column 13</option><option>Column 14</option><option>Column 15</option>
+    <option>Column 16</option><option>Column 17</option><option>Column 18</option><option>Column 19</option><option>Column 20</option>
   </select>
+
   <select id="colorSelect">
     <option value="">Select Color</option>
     <option>Red</option>
@@ -62,6 +71,7 @@
     <option>Black</option>
     <option>Brown</option>
   </select>
+
   <button id="setLocation">Set Location</button>
   <button id="backupBtn">Backup</button>
   <input type="file" id="openBackup" accept=".json">
