@@ -3,90 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Drug Scanner + Camera + GitHub</title>
+<title>Drug Scanner + GitHub Save + Camera</title>
 <style>
-body{font-family:system-ui, Arial, sans-serif; background:#0e1726;color:#e8ecf5;margin:0;padding:18px;}
-h1{margin-top:0;font-size:20px;}
-.card{background: rgba(255,255,255,0.05);padding:12px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.2);margin-bottom:12px;}
-label{font-size:13px;color:#aab3c0;}
-input, button{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background: rgba(255,255,255,0.05); color: inherit;}
-button{cursor:pointer;margin-top:4px;}
-table{width:100%; border-collapse: collapse; margin-top:12px;}
-th, td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);}
-th{color:#99a2b0;text-align:left;}
-.swatch{width:28px; height:18px; border-radius:4px;}
-.active-location{background:#1a2333;border:1px solid #334155;padding:10px;border-radius:8px;margin-top:10px;}
-.active-location strong{color:#38bdf8;}
-#cameraScanner{width:100%;height:300px;margin-top:10px;}
+  body { font-family: system-ui, Arial, sans-serif; background: #0e1726; color: #e8ecf5; margin: 0; padding: 18px; }
+  h1 { margin-top:0; font-size:20px; }
+  .card { background: rgba(255,255,255,0.05); padding:12px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.2); margin-bottom:12px; }
+  label { font-size:13px; color:#aab3c0; }
+  input, button { padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: inherit; }
+  button { cursor:pointer; }
+  table { width:100%; border-collapse: collapse; margin-top:12px; }
+  th, td { padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.05); }
+  th { color:#99a2b0; text-align:left; }
+  .swatch { width:28px; height:18px; border-radius:4px; }
+  .active-location { background:#1a2333; border:1px solid #334155; padding:10px; border-radius:8px; margin-top:10px; }
+  .active-location strong { color:#38bdf8; }
+  video { width:100%; border-radius:8px; display:none; margin-top:10px; }
 </style>
 </head>
 <body>
 <h1>Drug Location Scanner</h1>
 
 <div class="card">
-<label>Section #</label>
-<input id="section" type="number" min="1" value="1">
-<label>Column #</label>
-<input id="column" type="number" min="1" value="1">
-<label>Color</label>
-<input id="color" type="color" value="#60a5fa">
-<button id="setLocationBtn">Set Location</button>
+  <label>Section #</label>
+  <input id="section" type="number" min="1" value="1">
+  <label>Column #</label>
+  <input id="column" type="number" min="1" value="1">
+  <label>Color</label>
+  <input id="color" type="color" value="#60a5fa">
+  <button id="setLocationBtn">Set Location</button>
 
-<div id="activeLocation" class="active-location" style="display:none;">
-<strong>Active Location:</strong>
-<span id="locLabel"></span>
-<button id="changeLocationBtn">Change</button>
-<button id="stopScanBtn">Stop</button>
-</div>
-<p id="status">Waiting for scan...</p>
-</div>
-
-<div class="card">
-<label>Scan or Type UPC/NDC:</label><br>
-<input id="scanInput" type="text" placeholder="Scan or type code" autofocus>
+  <div id="activeLocation" class="active-location" style="display:none;">
+    <strong>Active Location:</strong>
+    <span id="locLabel"></span>
+    <button id="changeLocationBtn">Change</button>
+    <button id="stopScanBtn">Stop</button>
+  </div>
+  <p id="status">Waiting for scan...</p>
 </div>
 
 <div class="card">
-<label>Camera Scanner:</label>
-<div id="cameraScanner"></div>
-<button id="startCameraBtn">Start Camera Scanner</button>
-<button id="stopCameraBtn">Stop Camera Scanner</button>
+  <label>Scan or Type UPC/NDC:</label><br>
+  <input id="scanInput" type="text" placeholder="Scan or type code" autofocus>
+  <button id="startCamera">📷 Start Camera Scanner</button>
+  <video id="preview" autoplay muted playsinline></video>
 </div>
 
 <div class="card">
-<button id="saveGitHubBtn">Save to GitHub</button>
-<button id="lockDbBtn">Lock Database</button>
+  <button id="saveGitHubBtn">Save to GitHub</button>
+  <button id="lockDbBtn">Lock Database</button>
 </div>
 
 <table id="logTable">
-<thead>
-<tr><th>#</th><th>Code</th><th>Type</th><th>Section</th><th>Column</th><th>Color</th><th>Time</th></tr>
-</thead>
-<tbody></tbody>
+  <thead>
+    <tr><th>#</th><th>Code</th><th>Type</th><th>Section</th><th>Column</th><th>Color</th><th>Time</th></tr>
+  </thead>
+  <tbody></tbody>
 </table>
 
-<script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
 <script>
-const githubDB="https://htdhtdhtd2003.github.io/ndc/database.json";
-let githubData=[], localData=JSON.parse(localStorage.getItem('drug_location_db')||'[]');
-let currentLocation=null, githubToken=null;
-let html5QrCode = new Html5Qrcode("cameraScanner");
-let cameraActive=false;
+const githubDB = "https://htdhtdhtd2003.github.io/ndc/database.json";
+let githubData = [];
+let localData = JSON.parse(localStorage.getItem('drug_location_db') || '[]');
+let currentLocation = null;
+let githubToken = null;
+let cameraActive = false;
+let codeReader = null;
 
 // Load GitHub DB
-async function loadGitHub(){
-  try{
-    const res=await fetch(githubDB+'?t='+Date.now());
-    githubData=await res.json();
+async function loadGitHub() {
+  try {
+    const res = await fetch(githubDB + '?t=' + Date.now());
+    githubData = await res.json();
     console.log('GitHub DB loaded:', githubData.length);
-  }catch(err){console.error(err);}
+  } catch(err){ console.error(err); }
 }
 loadGitHub();
 setInterval(loadGitHub, 3*60*1000);
 
-function saveLocalDB(){localStorage.setItem('drug_location_db',JSON.stringify(localData));}
+// Save local
+function saveLocalDB(){ localStorage.setItem('drug_location_db', JSON.stringify(localData)); }
+
+// Render table
 function renderTable(){
-  const body=document.querySelector('#logTable tbody'); body.innerHTML='';
+  const body = document.querySelector('#logTable tbody');
+  body.innerHTML='';
   localData.forEach((it,i)=>{
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${i+1}</td><td>${it.code}</td><td>${it.type}</td><td>${it.section}</td><td>${it.column}</td><td><div class="swatch" style="background:${it.color}"></div></td><td>${new Date(it.time).toLocaleTimeString()}</td>`;
@@ -102,20 +102,39 @@ function classify(code){
   return 'UNKNOWN';
 }
 
-function speak(text){if(!('speechSynthesis' in window))return; const u=new SpeechSynthesisUtterance(text); u.rate=1; u.pitch=1; window.speechSynthesis.speak(u);}
+function speak(text){
+  if(!('speechSynthesis' in window))return;
+  const u=new SpeechSynthesisUtterance(text);
+  u.rate=1; u.pitch=1;
+  window.speechSynthesis.speak(u);
+}
 
-function getColorName(hex){const map={"#60a5fa":"Blue","#f87171":"Red","#34d399":"Green","#fbbf24":"Yellow","#a78bfa":"Purple","#f472b6":"Pink","#facc15":"Gold","#10b981":"Teal"}; return map[hex.toLowerCase()]||"Unknown";}
+function getColorName(hex){
+  const map={"#60a5fa":"Blue","#f87171":"Red","#34d399":"Green","#fbbf24":"Yellow","#a78bfa":"Purple","#f472b6":"Pink","#facc15":"Gold","#10b981":"Teal"};
+  return map[hex.toLowerCase()]||"Unknown";
+}
 
 function addOrUpdate(code){
   const input=document.getElementById('scanInput');
-  if(!currentLocation){document.getElementById('status').textContent='⚠️ Set location first.'; input.value=''; input.focus(); return;}
+  if(!currentLocation){
+    document.getElementById('status').textContent='⚠️ Set location first.';
+    input.value=''; input.focus(); return;
+  }
   const existing=localData.find(it=>it.code===code);
   if(existing){
     const move=confirm(`Code ${code} already exists.\nMove to new location?`);
-    if(move){existing.section=currentLocation.section; existing.column=currentLocation.column; existing.color=currentLocation.color; existing.time=Date.now(); document.getElementById('status').textContent=`✅ Moved ${code}.`;}
-    else document.getElementById('status').textContent=`⏩ Duplicate ignored.`;
+    if(move){
+      existing.section=currentLocation.section;
+      existing.column=currentLocation.column;
+      existing.color=currentLocation.color;
+      existing.time=Date.now();
+      document.getElementById('status').textContent=`✅ Moved ${code}.`;
+    } else document.getElementById('status').textContent=`⏩ Duplicate ignored.`;
   } else{
-    localData.push({code,type:classify(code),section:currentLocation.section,column:currentLocation.column,color:currentLocation.color,time:Date.now()});
+    localData.push({
+      code, type: classify(code), section: currentLocation.section,
+      column: currentLocation.column, color: currentLocation.color, time: Date.now()
+    });
     document.getElementById('status').textContent=`Added ${code} at Section ${currentLocation.section}, Column ${currentLocation.column}`;
   }
   saveLocalDB(); renderTable();
@@ -135,11 +154,15 @@ document.getElementById('setLocationBtn').onclick=()=>{
   document.getElementById('scanInput').focus();
 };
 document.getElementById('changeLocationBtn').onclick=()=>{
-  currentLocation=null; document.getElementById('activeLocation').style.display='none';
+  currentLocation=null;
+  document.getElementById('activeLocation').style.display='none';
   document.getElementById('status').textContent='Location cleared.';
+  document.getElementById('scanInput').focus();
 };
 document.getElementById('stopScanBtn').onclick=()=>{
-  currentLocation=null; document.getElementById('status').textContent='Scanning stopped.';
+  currentLocation=null;
+  document.getElementById('status').textContent='Scanning stopped.';
+  document.getElementById('scanInput').focus();
 };
 
 // Scan input
@@ -147,42 +170,111 @@ document.getElementById('scanInput').addEventListener('keypress', e=>{
   if(e.key==='Enter'){ e.preventDefault(); const code=e.target.value.trim(); if(code) addOrUpdate(code);}
 });
 
-// GitHub save
-document.getElementById('saveGitHubBtn').onclick=async()=>{
-  if(!githubToken){ githubToken=prompt("Enter GitHub Personal Access Token (with repo permissions):"); if(!githubToken) return alert("Token required."); }
+// GitHub save with token validation
+document.getElementById('saveGitHubBtn').onclick = async () => {
+  const status = document.getElementById('status');
+  if (!githubToken) {
+    githubToken = prompt("Enter GitHub Personal Access Token (with repo permissions):");
+    if (!githubToken) return alert("Token required.");
+  }
+
+  status.textContent = "🔄 Validating token...";
+  if (!(await validateToken(githubToken))) {
+    alert("❌ Invalid GitHub token or expired token.");
+    githubToken = null;
+    status.textContent = "❌ Token invalid.";
+    return;
+  }
+
+  status.textContent = "⏳ Saving to GitHub...";
   await saveToGitHub(githubToken);
+  status.textContent = "✅ GitHub database updated.";
+  document.getElementById('scanInput').focus();
 };
-document.getElementById('lockDbBtn').onclick=()=>{ githubToken=null; alert("✅ Database locked. GitHub token cleared."); };
 
+document.getElementById('lockDbBtn').onclick=()=>{
+  githubToken=null;
+  alert("✅ Database locked. GitHub token cleared.");
+};
+
+// Validate GitHub token
+async function validateToken(token){
+  try{
+    const res = await fetch("https://api.github.com/user", { headers:{Authorization:`token ${token}`} });
+    return res.ok;
+  } catch { return false; }
+}
+
+// GitHub upload
 async function saveToGitHub(token){
-  const owner="htdhtdhtd2003", repo="ndc", path="database.json", branch="main";
-  try{
-    const getRes=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,{headers:{Authorization:`token ${token}`}});
-    const fileData=await getRes.json(); if(!fileData.sha) return alert("Error reading file SHA.");
-    const updatedContent=btoa(JSON.stringify(localData,null,2));
-    const updateRes=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`,{method:"PUT",headers:{Authorization:`token ${token}`,"Content-Type":"application/json"},body:JSON.stringify({message:"Update via scanner",content:updatedContent,sha:fileData.sha,branch})});
-    const result=await updateRes.json();
-    if(result.content) alert("✅ GitHub database updated!"); else {console.error(result); alert("❌ Failed to update. Check token/permissions.");}
-  }catch(err){console.error(err); alert("❌ GitHub API error.");}
-}
+  const owner = "htdhtdhtd2003";
+  const repo = "ndc";
+  const path = "database.json";
+  const branch = "main";
 
-// Camera scanner controls
-async function startCameraScanner(){
-  if(cameraActive) return;
-  try{
-    const cameras = await Html5Qrcode.getCameras();
-    if(cameras && cameras.length){
-      await html5QrCode.start(cameras[0].id,{fps:10,qrbox:250}, qrCodeMessage=>{ addOrUpdate(qrCodeMessage); }, err=>{console.log("Scan error:",err);} );
-      cameraActive = true;
-      document.getElementById('status').textContent='Camera scanner active.';
+  try {
+    let sha = null;
+    const getRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`, {
+      headers: { Authorization: `token ${token}` }
+    });
+
+    if (getRes.status === 404) {
+      console.warn("database.json not found — creating new file.");
+    } else if (getRes.ok) {
+      const data = await getRes.json();
+      sha = data.sha;
     }
-  }catch(err){console.error("Camera error:",err);}
+
+    const updatedContent = btoa(JSON.stringify(localData, null, 2));
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+      method: "PUT",
+      headers: {
+        Authorization: `token ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: "Update database.json via Drug Scanner",
+        content: updatedContent,
+        sha,
+        branch
+      })
+    });
+
+    const result = await res.json();
+    if (!res.ok) alert(`❌ Save failed: ${result.message || "Unknown error"}`);
+    else alert("✅ database.json saved successfully!");
+  } catch (err) {
+    console.error("GitHub save error:", err);
+    alert("❌ GitHub API error. Check console for details.");
+  }
 }
 
-document.getElementById('startCameraBtn').onclick = startCameraScanner;
-document.getElementById('stopCameraBtn').onclick = async ()=>{
-  if(cameraActive){
-    await html5QrCode.stop(); cameraActive=false; document.getElementById('status').textContent='Camera scanner stopped.';
+// --- 📷 CAMERA BARCODE SCANNER ---
+document.getElementById('startCamera').onclick = async () => {
+  const video = document.getElementById('preview');
+  if (cameraActive) {
+    codeReader?.reset();
+    video.style.display = 'none';
+    document.getElementById('startCamera').textContent = '📷 Start Camera Scanner';
+    cameraActive = false;
+    return;
+  }
+  document.getElementById('status').textContent = "🔍 Starting camera...";
+  try {
+    const { BrowserMultiFormatReader } = await import("https://unpkg.com/@zxing/browser@latest");
+    codeReader = new BrowserMultiFormatReader();
+    video.style.display = 'block';
+    cameraActive = true;
+    document.getElementById('startCamera').textContent = '🛑 Stop Camera Scanner';
+    codeReader.decodeFromVideoDevice(null, 'preview', (result, err) => {
+      if (result) {
+        addOrUpdate(result.text);
+      }
+    });
+    document.getElementById('status').textContent = "📸 Camera scanner active. Aim at barcode.";
+  } catch (err) {
+    console.error(err);
+    document.getElementById('status').textContent = "❌ Camera failed to start.";
   }
 };
 
