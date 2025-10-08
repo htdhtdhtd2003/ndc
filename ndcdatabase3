@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drug Location Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<style>
+  body {
+    font-family: system-ui, Arial, sans-serif;
+    background-color: #0e1726;
+    color: #e8ecf5;
+    margin: 0;
+    padding: 20px;
+  }
+  h1 {
+    text-align: center;
+    color: #00e0ff;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  select, input {
+    padding: 10px;
+    font-size: 1rem;
+    border-radius: 8px;
+    border: none;
+    outline: none;
+  }
+  select {
+    background: #1c2940;
+    color: #e8ecf5;
+  }
+  input {
+    background: #101b33;
+    color: #e8ecf5;
+    width: 250px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: #1b2335;
+  }
+  th, td {
+    padding: 10px;
+    border-bottom: 1px solid #2a3550;
+    text-align: center;
+  }
+  th {
+    color: #00e0ff;
+  }
+  tr:hover {
+    background: #24314d;
+  }
+</style>
+</head>
+<body>
+<h1>Drug Location Tracker</h1>
+
+<div class="controls">
+  <select id="sectionSelect">
+    <option value="">Select Section</option>
+    <option>Section 1</option><option>Section 2</option><option>Section 3</option><option>Section 4</option>
+    <option>Section 5</option><option>Section 6</option><option>Section 7</option><option>Section 8</option>
+    <option>Section 9</option><option>Section 10</option><option>Section 11</option><option>Section 12</option>
+    <option>Section 13</option><option>Section 14</option><option>Section 15</option><option>Section 16</option>
+    <option>Section 17</option><option>Section 18</option><option>Section 19</option><option>Section 20</option>
+  </select>
+
+  <select id="columnSelect">
+    <option value="">Select Column</option>
+    <option>Column 1</option><option>Column 2</option><option>Column 3</option><option>Column 4</option>
+    <option>Column 5</option><option>Column 6</option><option>Column 7</option><option>Column 8</option>
+    <option>Column 9</option><option>Column 10</option><option>Column 11</option><option>Column 12</option>
+    <option>Column 13</option><option>Column 14</option><option>Column 15</option><option>Column 16</option>
+    <option>Column 17</option><option>Column 18</option><option>Column 19</option><option>Column 20</option>
+  </select>
+
+  <select id="colorSelect">
+    <option value="">Select Color</option>
+    <option>Red</option><option>Orange</option><option>Yellow</option><option>Green</option>
+    <option>Blue</option><option>Purple</option><option>Pink</option><option>Brown</option>
+    <option>Gray</option><option>Black</option><option>White</option><option>Teal</option>
+    <option>Maroon</option><option>Silver</option><option>Gold</option><option>Navy</option>
+    <option>Olive</option><option>Coral</option><option>Lavender</option><option>Turquoise</option>
+  </select>
+</div>
+
+<input type="text" id="scanInput" maxlength="12" placeholder="Scan NDC (11) or UPC (12)" autofocus />
+
+<table id="drugTable">
+  <thead>
+    <tr>
+      <th>NDC / UPC</th>
+      <th>Section</th>
+      <th>Column</th>
+      <th>Color</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+  const input = document.getElementById('scanInput');
+  const tableBody = document.querySelector('#drugTable tbody');
+  const sectionSelect = document.getElementById('sectionSelect');
+  const columnSelect = document.getElementById('columnSelect');
+  const colorSelect = document.getElementById('colorSelect');
+
+  let activeLocation = { section: "", column: "", color: "" };
+  let scanTimer = null;
+
+  sectionSelect.addEventListener('change', () => activeLocation.section = sectionSelect.value);
+  columnSelect.addEventListener('change', () => activeLocation.column = columnSelect.value);
+  colorSelect.addEventListener('change', () => activeLocation.color = colorSelect.value);
+
+  input.addEventListener('input', () => {
+    if (scanTimer) clearTimeout(scanTimer);
+    if (input.value.length >= 11) {
+      scanTimer = setTimeout(() => handleScan(input.value.trim()), 3000);
+    }
+  });
+
+  function handleScan(code) {
+    if (code.length === 11 || code.length === 12) {
+      if (!activeLocation.section && !activeLocation.column && !activeLocation.color) {
+        alert('Please select a Section, Column, or Color first.');
+        resetInput();
+        return;
+      }
+
+      let existingRow = [...tableBody.rows].find(row => row.cells[0].innerText === code);
+      if (existingRow) {
+        let currentLoc = `${existingRow.cells[1].innerText} | ${existingRow.cells[2].innerText} | ${existingRow.cells[3].innerText}`;
+        if (confirm(`This code already exists.\nCurrent Location: ${currentLoc}\nChange to new location?`)) {
+          existingRow.cells[1].innerText = activeLocation.section;
+          existingRow.cells[2].innerText = activeLocation.column;
+          existingRow.cells[3].innerText = activeLocation.color;
+        }
+      } else {
+        let row = tableBody.insertRow();
+        row.insertCell(0).innerText = code;
+        row.insertCell(1).innerText = activeLocation.section;
+        row.insertCell(2).innerText = activeLocation.column;
+        row.insertCell(3).innerText = activeLocation.color;
+      }
+
+      resetInput();
+    } else {
+      alert('Invalid code length. Please rescan.');
+      resetInput();
+    }
+  }
+
+  function resetInput() {
+    input.value = "";
+    input.focus();
+  }
+</script>
+</body>
+</html>
