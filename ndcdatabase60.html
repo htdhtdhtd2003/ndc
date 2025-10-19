@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drug Location Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<style>
+body {
+  font-family: system-ui, Arial, sans-serif;
+  background: #f5f6fa;
+  color: #333;
+  margin: 0;
+  padding: 20px;
+}
+input, select, button {
+  padding: 10px;
+  margin: 5px 0;
+  font-size: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+button {
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:hover { opacity: 0.9; }
+#saveUpdateBtn { background: #28a745; color: white; }
+#clearTable { background: #dc3545; color: white; }
+#addNewBtn { background: #ff9800; color: white; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+th, td {
+  border: 1px solid #aaa;
+  padding: 8px;
+  text-align: center;
+  font-size: 14px;
+}
+tr.selected { background-color: #d3f4ff; }
+.qr-container {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+#popup {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90%;
+  background: #333;
+  color: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  display: none;
+  white-space: pre-line;
+  font-size: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 9999;
+  cursor: pointer;
+}
+.highlight { background-color: #ffe3b3 !important; }
+
+@media (min-width: 600px) {
+  input, select, button { width: auto; display: inline-block; }
+  .qr-container { justify-content: flex-start; }
+}
+</style>
+</head>
+<body>
+
+<h2>Drug Location Tracker</h2>
+
+<!-- Scan & Search -->
+<div>
+  <label>Scan NDC/UPC:</label>
+  <input type="text" id="scanInput" maxlength="12" placeholder="Scan 11–12 digit code">
+  <label>Search NDC/UPC:</label>
+  <input type="text" id="searchInput" maxlength="12" placeholder="Enter or scan to search">
+</div>
+
+<!-- Edit Area -->
+<h3>Update or Add Drug</h3>
+<div id="editArea">
+  <label>Drug Name:</label>
+  <input type="text" id="editDrugName" placeholder="Enter drug name">
+
+  <label>NDC:</label>
+  <input type="text" id="editNDC" maxlength="11" placeholder="Enter NDC">
+
+  <label>UPC:</label>
+  <input type="text" id="editUPC" maxlength="12" placeholder="Enter 12-digit UPC">
+
+  <br>
+  <label>Section Name:</label>
+  <input type="text" id="editSectionName" placeholder="Fridge, Safe, Section">
+  <label>Section #:</label>
+  <select id="editSectionNumber"><option value="">Select #</option></select>
+
+  <label>Column Name:</label>
+  <input type="text" id="editColumnName" placeholder="Left, Right, Bin, etc.">
+  <label>Column #:</label>
+  <select id="editColumn"><option value="">Select #</option></select>
+
+  <label>Color:</label>
+  <select id="editColor">
+    <option value="">Select Color</option>
+    <option>Red</option><option>Blue</option><option>Green</option>
+    <option>Yellow</option><option>Orange</option><option>Purple</option>
+    <option>Pink</option><option>White</option><option>Black</option>
+    <option>Gray</option><option>Brown</option><option>Silver</option><option>Gold</option>
+  </select>
+
+  <br>
+  <button id="saveUpdateBtn">Save / Update</button>
+  <button id="addNewBtn">Add New Item</button>
+</div>
+
+<!-- File Controls -->
+<div>
+  <button id="saveFile">Save Backup</button>
+  <input type="file" id="openFile" style="display:none">
+  <button onclick="document.getElementById('openFile').click()">Open Backup</button>
+  <button id="importTxtBtn">Import TXT</button>
+  <input type="file" id="importTxtFile" accept=".txt" style="display:none">
+  <button id="clearTable">Clear Table</button>
+</div>
+
+<!-- Table -->
+<table id="drugTable">
+  <thead>
+    <tr>
+      <th>Drug Name</th>
+      <th>NDC</th>
+      <th>UPC</th>
+      <th>Section</th>
+      <th>Column</th>
+      <th>Color</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<!-- QR Codes -->
+<div class="qr-container">
+  <div><h3>Drug QR Code</h3><canvas id="qrDrug"></canvas></div>
+  <div><h3>Location QR Code</h3><canvas id="qrLocation"></canvas></div>
+</div>
+
+<div id="popup"></div>
+
+<script>
+const tbody=document.querySelector('#drugTable tbody');
+let currentRow=null;
+let lastLocation={section:'',column:'',color:''};
+const searchInput=document.getElementById('searchInput');
+
+// Populate 1–40 section/column
+for(let i=1;i<=40;i++){
+  document.getElementById('editSectionNumber').innerHTML+=`<option value="${i}">${i}</option>`;
+  document.getElementById('editColumn').innerHTML+=`<option value="${i}">${i}</option>`;
+}
+
+function normalizeDigits(s){return(s||'').replace(/\D/g,'');}
+function showPopup(msg){
+  const p=document.getElementById('popup');
+  p.innerText=msg; 
+  p.style.display='block';
+
+  // Dismiss on click
+  p.onclick = () => {
+    p.style.display='none';
+    searchInput.value='';
+    searchInput.focus();
+  };
+}
+
+function speakText(t){
+  const u=new SpeechSynthesisUtterance(t);
+  u.rate=0.9;u.pitch=1.0;
+  window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+}
+
+function generateSection(){
+  const n=document.getElementById('editSectionName').value.trim();
+  const num=document.getElementById('editSectionNumber').value.trim();
+  return n && num ? `${n} ${num}` : n || '';
+}
+function generateColumn(){
+  const name=document.getElementById('editColumnName').value.trim();
+  const num=document.getElementById('editColumn').value.trim();
+  return name && num ? `${name} ${num}` : name || '';
+}
+
+function getEditData(){
+  let section=generateSection();
+  let column=generateColumn();
+  const color=document.getElementById('editColor').value.trim();
+
+  if(!section) section=lastLocation.section;
+  if(!column) column=lastLocation.column;
+  const colorFinal=color||lastLocation.color;
+
+  if(section||column||colorFinal)
+    lastLocation={section,column,color:colorFinal};
+
+  return {
+    drugName:document.getElementById('editDrugName').value.trim(),
+    ndc:document.getElementById('editNDC').value.trim(),
+    upc:document.getElementById('editUPC').value.trim(),
+    section, column, color:colorFinal
+  };
+}
+
+function clearEditFields(){
+  document.querySelectorAll('#editArea input,#editArea select').forEach(el=>{
+    if(el.tagName==='SELECT') el.selectedIndex=0; else el.value='';
+  });
+}
+
+function addItemToTable(item){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${item.drugName||''}</td>
+  <td>${item.ndc||''}</td><td>${item.upc||''}</td>
+  <td>${item.section||''}</td><td>${item.column||''}</td><td>${item.color||''}</td>`;
+  tr.addEventListener('click',()=>selectRow(tr));
+  tbody.appendChild(tr);
+}
+
+function selectRow(tr){
+  document.querySelectorAll('#drugTable tr').forEach(r=>r.classList.remove('selected'));
+  tr.classList.add('selected');
+  currentRow=tr;
+  const [name,ndc,upc,section,column,color]=[...tr.cells].map(td=>td.innerText);
+
+  let updated=false;
+  let sec=section, col=column, colr=color;
+  if(!sec && lastLocation.section){ sec=lastLocation.section; updated=true; }
+  if(!col && lastLocation.column){ col=lastLocation.column; updated=true; }
+  if(!colr && lastLocation.color){ colr=lastLocation.color; updated=true; }
+
+  if(updated){
+    tr.cells[3].innerText=sec;
+    tr.cells[4].innerText=col;
+    tr.cells[5].innerText=colr;
+    showPopup('Location auto-filled from last known');
+  }
+
+  const secParts=sec.split(' ');
+  const colParts=col.split(' ');
+  document.getElementById('editDrugName').value=name;
+  document.getElementById('editNDC').value=ndc;
+  document.getElementById('editUPC').value=upc;
+  document.getElementById('editSectionName').value=secParts[0]||'';
+  document.getElementById('editSectionNumber').value=secParts[1]||'';
+  document.getElementById('editColumnName').value=colParts[0]||'';
+  document.getElementById('editColumn').value=colParts[1]||'';
+  document.getElementById('editColor').value=colr;
+
+  lastLocation={section:sec,column:col,color:colr};
+
+  QRCode.toCanvas(document.getElementById('qrDrug'), ndc||upc||'', {width:150});
+  QRCode.toCanvas(document.getElementById('qrLocation'), [sec,col,colr].filter(Boolean).join('-'), {width:150});
+}
+
+// Add new
+document.getElementById('addNewBtn').addEventListener('click',()=>{
+  const d=getEditData();
+  if(!d.drugName && !d.ndc){alert('Enter at least Drug Name or NDC');return;}
+  addItemToTable(d);
+  showPopup('New item added');
+  clearEditFields();
+});
+
+// Save / Update
+document.getElementById('saveUpdateBtn').addEventListener('click',()=>{
+  if(!currentRow){showPopup('Select a row first');return;}
+  const d=getEditData();
+  const c=[...currentRow.cells];
+  c[0].innerText=d.drugName; c[1].innerText=d.ndc; c[2].innerText=d.upc;
+  c[3].innerText=d.section; c[4].innerText=d.column; c[5].innerText=d.color;
+  currentRow.classList.add('highlight');
+  setTimeout(()=>currentRow.classList.remove('highlight'),1500);
+
+  const rows=[...tbody.rows];
+  const index=rows.indexOf(currentRow);
+  if(index>=0 && index<rows.length-1){
+    selectRow(rows[index+1]);
+  }else{
+    showPopup('End of table reached');
+    currentRow=null;
+  }
+});
+
+// Search
+let searchTimer=null;
+searchInput.addEventListener('input',function(){
+  const v=this.value.trim();
+  if(normalizeDigits(v).length>=11){
+    clearTimeout(searchTimer);
+    searchTimer=setTimeout(()=>searchCode(v),1000);
+  }
+});
+function searchCode(code){
+  const norm=normalizeDigits(code);
+  const found=[...tbody.rows].find(r=>normalizeDigits(r.cells[1].innerText)===norm||normalizeDigits(r.cells[2].innerText)===norm);
+  if(found){
+    selectRow(found);
+    const loc=[found.cells[3].innerText,found.cells[4].innerText,found.cells[5].innerText].filter(Boolean).join(', ');
+    const drugInfo=`Drug Name: ${found.cells[0].innerText}
+NDC: ${found.cells[1].innerText}
+UPC: ${found.cells[2].innerText}
+Location: ${loc||'Not set'}`;
+    showPopup(drugInfo);
+    speakText(loc||'Location not set');
+  }else{
+    showPopup('Code not found');
+    speakText('Code not found');
+  }
+}
+
+// Import TXT
+document.getElementById('importTxtBtn').addEventListener('click',()=>document.getElementById('importTxtFile').click());
+document.getElementById('importTxtFile').addEventListener('change',function(){
+  const f=this.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    tbody.innerHTML='';
+    e.target.result.split(/\r?\n/).forEach(line=>{
+      const parts=line.trim().split(/\s+/);
+      if(parts.length<2)return;
+      const ndc=parts.pop();
+      const name=parts.join(' ');
+      addItemToTable({drugName:name,ndc});
+    });
+    showPopup('TXT Imported');
+  };
+  r.readAsText(f);
+});
+
+// Scan for update
+let scanTimer=null;
+document.getElementById('scanInput').addEventListener('input',function(){
+  const val=this.value.trim();
+  if(normalizeDigits(val).length>=11){
+    clearTimeout(scanTimer);
+    scanTimer=setTimeout(()=>processScan(val),1000);
+  }
+});
+function processScan(code){
+  const norm=normalizeDigits(code);
+  const found=[...tbody.rows].find(r=>normalizeDigits(r.cells[1].innerText)===norm||normalizeDigits(r.cells[2].innerText)===norm);
+  if(found){
+    selectRow(found);
+    if(confirm('Code found. Update location with current values?')){
+      const d=getEditData();
+      found.cells[3].innerText=d.section;
+      found.cells[4].innerText=d.column;
+      found.cells[5].innerText=d.color;
+      showPopup('Location updated');
+    }
+  } else showPopup('Code not found');
+  this.value=''; this.focus();
+}
+
+// Backup / Restore
+document.getElementById('saveFile').addEventListener('click',()=>{
+  const data=[...tbody.rows].map(r=>({
+    drugName:r.cells[0].innerText, ndc:r.cells[1].innerText, upc:r.cells[2].innerText,
+    section:r.cells[3].innerText, column:r.cells[4].innerText, color:r.cells[5].innerText
+  }));
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='drug_backup.json'; a.click();
+});
+document.getElementById('openFile').addEventListener('change',function(){
+  const f=this.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      tbody.innerHTML='';
+      data.forEach(i=>addItemToTable(i));
+      showPopup('Backup Loaded');
+    }catch{alert('Invalid File');}
+  };
+  r.readAsText(f);
+});
+document.getElementById('clearTable').addEventListener('click',()=>{
+  if(confirm('Clear all data?'))tbody.innerHTML='';
+});
+</script>
+
+</body>
+</html>
