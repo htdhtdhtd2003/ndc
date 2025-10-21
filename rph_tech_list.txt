@@ -60,6 +60,13 @@
     "cprDate": "2026-04-18"
   },
   {
+    "id": 1761089144050,
+    "role": "TECH",
+    "name": "Malcolm Willis",
+    "licenseDate": "2027-07-31",
+    "cprDate": ""
+  },
+  {
     "id": 1759469411976,
     "role": "TECH",
     "name": "Sowjanya Kandregula",
@@ -70,6 +77,13 @@
     "role": "TECH",
     "name": "Terri Denise Ingram",
     "licenseDate": "2027-09-30",
+    "cprDate": ""
+  },
+  {
+    "id": 1761089090186,
+    "role": "TECH",
+    "name": "Tomoyo Miyake",
+    "licenseDate": "2027-08-31",
     "cprDate": ""
   },
   {
