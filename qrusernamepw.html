@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>QR Label Generator - Printable</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <style>
+    :root{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    body{margin:0;padding:20px;background:#f6f7fb;color:#111;display:flex;align-items:flex-start;justify-content:center;min-height:100vh}
+    .card{width:100%;max-width:520px;background:#fff;border-radius:12px;box-shadow:0 6px 20px rgba(18,23,40,0.08);padding:18px}
+    h1{font-size:18px;margin:0 0 12px}
+    .row{display:flex;gap:8px;margin-bottom:10px}
+    .row input{flex:1;padding:10px;border:1px solid #d8dce6;border-radius:8px;font-size:15px}
+    label.small{font-size:12px;color:#556;display:block;margin-bottom:6px}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button{padding:10px 12px;border-radius:8px;border:0;background:#1f7aed;color:#fff;font-weight:600;cursor:pointer}
+    button:active{transform:translateY(1px)}
+    .preview{margin-top:16px;text-align:center}
+    canvas{max-width:100%;height:auto}
+    .qrlabel{margin-top:8px;font-size:16px;font-weight:600}
+    .hint{font-size:13px;color:#667; margin-top:8px}
+
+    /* Printable layout */
+    @media print {
+      body{background:#fff;align-items:flex-start;justify-content:flex-start;padding:0;}
+      .card{box-shadow:none;border:none;width:100%;max-width:none;margin:0;padding:0;}
+      h1,.controls,.hint,input,label{display:none !important;}
+      .preview{margin-top:0;text-align:center;page-break-inside:avoid;}
+      canvas{width:2.25in;height:2.25in;}
+      .qrlabel{font-size:18px;margin-top:6px;}
+    }
+
+    @media (max-width:420px){body{padding:12px}.card{padding:12px}}
+  </style>
+</head>
+<body>
+  <div class="card" role="main">
+    <h1>QR Label Generator (Printable)</h1>
+
+    <div>
+      <label class="small" for="labelName">Label name (displayed below the QR)</label>
+      <input id="labelName" type="text" placeholder="e.g. Safe 1" value="">
+    </div>
+
+    <div style="margin-top:10px">
+      <label class="small" for="username">Username</label>
+      <input id="username" type="text" placeholder="Enter username">
+    </div>
+
+    <div style="margin-top:10px">
+      <label class="small" for="password">Password</label>
+      <input id="password" type="password" placeholder="Enter password">
+    </div>
+
+    <div class="controls" style="margin-top:12px">
+      <button id="generate">Generate QR</button>
+      <button id="clear" type="button">Clear</button>
+      <button id="printBtn" type="button">Print</button>
+      <div style="flex:1"></div>
+      <div class="hint">QR encodes: <code>username\tpassword\r</code> (tab then enter)</div>
+    </div>
+
+    <div class="preview" aria-live="polite">
+      <canvas id="qrCanvas" width="256" height="256" aria-hidden="true"></canvas>
+      <div id="qrLabel" class="qrlabel" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <script>
+    const labelInput = document.getElementById('labelName');
+    const userInput = document.getElementById('username');
+    const passInput = document.getElementById('password');
+    const btnGen = document.getElementById('generate');
+    const btnClear = document.getElementById('clear');
+    const btnPrint = document.getElementById('printBtn');
+    const canvas = document.getElementById('qrCanvas');
+    const qrLabel = document.getElementById('qrLabel');
+
+    window.addEventListener('keydown', (e) => {
+      if (e.keyCode >= 112 && e.keyCode <= 123) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, {passive: false});
+
+    function buildPayload(username, password){
+      return String(username) + '\t' + String(password) + '\r';
+    }
+
+    async function generateQR(){
+      const username = userInput.value || '';
+      const password = passInput.value || '';
+      const payload = buildPayload(username, password);
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      try {
+        await QRCode.toCanvas(canvas, payload, {errorCorrectionLevel: 'M', margin: 1, width: 256});
+        const labelText = labelInput.value || '';
+        qrLabel.textContent = labelText;
+      } catch (err) {
+        console.error('QR generation error', err);
+        alert('Failed to generate QR: ' + (err && err.message));
+      }
+    }
+
+    function clearAll(){
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      qrLabel.textContent = '';
+      userInput.value = '';
+      passInput.value = '';
+      userInput.focus();
+    }
+
+    function printQR(){
+      if (!qrLabel.textContent.trim()) {
+        generateQR().then(() => window.print());
+      } else {
+        window.print();
+      }
+    }
+
+    btnGen.addEventListener('click', generateQR);
+    btnClear.addEventListener('click', clearAll);
+    btnPrint.addEventListener('click', printQR);
+
+    passInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        generateQR();
+      }
+    });
+
+    labelInput.addEventListener('input', () => {
+      qrLabel.textContent = labelInput.value;
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key && e.key.startsWith('F')){
+        const num = parseInt(e.key.slice(1), 10);
+        if (!isNaN(num) && num >= 1 && num <= 12){
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    }, {passive:false});
+
+    userInput.focus();
+  </script>
+</body>
+</html>
