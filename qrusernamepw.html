@@ -19,16 +19,17 @@
     .preview{margin-top:16px;text-align:center}
     canvas{max-width:100%;height:auto}
     .qrlabel{margin-top:8px;font-size:16px;font-weight:600}
-    .hint{font-size:13px;color:#667; margin-top:8px}
+    .hint{font-size:13px;color:#667;margin-top:8px}
 
-    /* Printable layout */
+    /* Printable layout for 2.25" x 5" label */
     @media print {
+      @page { size: 2.25in 5in; margin: 0; }
       body{background:#fff;align-items:flex-start;justify-content:flex-start;padding:0;}
       .card{box-shadow:none;border:none;width:100%;max-width:none;margin:0;padding:0;}
       h1,.controls,.hint,input,label{display:none !important;}
       .preview{margin-top:0;text-align:center;page-break-inside:avoid;}
-      canvas{width:2.25in;height:2.25in;}
-      .qrlabel{font-size:18px;margin-top:6px;}
+      canvas{width:2in;height:2in;}
+      .qrlabel{font-size:18px;margin-top:0.15in;}
     }
 
     @media (max-width:420px){body{padding:12px}.card{padding:12px}}
@@ -58,11 +59,11 @@
       <button id="clear" type="button">Clear</button>
       <button id="printBtn" type="button">Print</button>
       <div style="flex:1"></div>
-      <div class="hint">QR encodes: <code>username\tpassword\r</code> (tab then enter)</div>
+      <div class="hint">QR encodes username+tab+password+enter (or password+enter if username empty)</div>
     </div>
 
     <div class="preview" aria-live="polite">
-      <canvas id="qrCanvas" width="128" height="128" aria-hidden="true"></canvas>
+      <canvas id="qrCanvas" width="256" height="256" aria-hidden="true"></canvas>
       <div id="qrLabel" class="qrlabel" aria-hidden="true"></div>
     </div>
   </div>
@@ -77,6 +78,7 @@
     const canvas = document.getElementById('qrCanvas');
     const qrLabel = document.getElementById('qrLabel');
 
+    // Suppress browser F1–F12 keys
     window.addEventListener('keydown', (e) => {
       if (e.keyCode >= 112 && e.keyCode <= 123) {
         e.preventDefault();
@@ -84,28 +86,36 @@
       }
     }, {passive: false});
 
-    function buildPayload(username, password){
-      return String(username) + '\t' + String(password) + '\r';
+    // Build escape sequence dynamically
+    function buildPayload(username, password) {
+      if (username && password) return `${username}\t${password}\r\n`;
+      if (password) return `${password}\r\n`;
+      if (username) return `${username}\r\n`;
+      return '';
     }
 
-    async function generateQR(){
-      const username = userInput.value || '';
-      const password = passInput.value || '';
+    async function generateQR() {
+      const username = userInput.value.trim();
+      const password = passInput.value.trim();
       const payload = buildPayload(username, password);
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      if (!payload) {
+        alert("Please enter a username or password.");
+        return;
+      }
+
       try {
         await QRCode.toCanvas(canvas, payload, {errorCorrectionLevel: 'M', margin: 1, width: 256});
-        const labelText = labelInput.value || '';
-        qrLabel.textContent = labelText;
+        qrLabel.textContent = labelInput.value.trim() || '';
       } catch (err) {
         console.error('QR generation error', err);
         alert('Failed to generate QR: ' + (err && err.message));
       }
     }
 
-    function clearAll(){
+    function clearAll() {
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0,0,canvas.width,canvas.height);
       qrLabel.textContent = '';
@@ -114,7 +124,7 @@
       userInput.focus();
     }
 
-    function printQR(){
+    function printQR() {
       if (!qrLabel.textContent.trim()) {
         generateQR().then(() => window.print());
       } else {
@@ -127,7 +137,7 @@
     btnPrint.addEventListener('click', printQR);
 
     passInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter'){
+      if (e.key === 'Enter') {
         e.preventDefault();
         generateQR();
       }
@@ -138,15 +148,16 @@
     });
 
     document.addEventListener('keydown', (e) => {
-      if (e.key && e.key.startsWith('F')){
+      if (e.key && e.key.startsWith('F')) {
         const num = parseInt(e.key.slice(1), 10);
-        if (!isNaN(num) && num >= 1 && num <= 12){
+        if (!isNaN(num) && num >= 1 && num <= 12) {
           e.preventDefault();
           e.stopPropagation();
         }
       }
     }, {passive:false});
 
+    window.addEventListener('afterprint', () => userInput.focus());
     userInput.focus();
   </script>
 </body>
