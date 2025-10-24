@@ -119,9 +119,10 @@
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0,0,canvas.width,canvas.height);
       qrLabel.textContent = '';
+      labelInput.value = '';
       userInput.value = '';
       passInput.value = '';
-      userInput.focus();
+      labelInput.focus();
     }
 
     function printQR() {
@@ -157,8 +158,12 @@
       }
     }, {passive:false});
 
-    window.addEventListener('afterprint', () => userInput.focus());
-    userInput.focus();
+    // Focus cursor on Label input when page loads
+    window.addEventListener('load', () => {
+      labelInput.focus();
+    });
+
+    window.addEventListener('afterprint', () => labelInput.focus());
   </script>
 </body>
 </html>
