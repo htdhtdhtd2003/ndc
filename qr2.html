@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Visual QR Builder Print — Full Escape Sequences</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<style>
+  body { font-family: system-ui, Arial, sans-serif; margin: 20px; background:#f6f7fb; }
+  h1 { font-size: 18px; margin-bottom:10px; }
+  input, label { padding: 6px; margin-right: 10px; margin-bottom:10px; }
+  #palette, #sequence { display:flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .draggable { padding:8px 12px; background:#1f7aed; color:white; border:none; border-radius:6px; cursor:pointer; user-select:none; }
+  .dropzone { min-height:50px; padding:10px; border:2px dashed #aaa; border-radius:8px; background:#fff; display:flex; gap:6px; flex-wrap: wrap; align-items:center; }
+  .block { padding:6px 10px; background:#4caf50; color:white; border-radius:4px; cursor: grab; display:inline-flex; gap:8px; align-items:center; }
+  .block .remove { font-weight:700; cursor:pointer; padding:0 6px; border-radius:3px; background:rgba(0,0,0,0.12); color:white; }
+  canvas { margin-top:16px; border:1px solid #ccc; display:block; }
+  #qrLabel { font-weight:600; margin-top:6px; font-size:16px; text-align:center; }
+  .controls { margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  button { padding:8px 12px; border:none; border-radius:6px; background:#1f7aed; color:white; cursor:pointer; }
+  button:active { transform:translateY(1px); }
+  .small { padding:6px 8px; font-size:13px; }
+  .muted { background:#888; }
+  .enterBtn { background:#6a1b9a; }
+  .specialBtn { background:#ff5722; }
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      border: 2px solid #000;
+      padding: 20px;
+      page-break-inside: avoid;
+      background: white;
+    }
+    canvas { border: none !important; }
+  }
+</style>
+</head>
+<body>
+  <h1>Drag and Drop QR Generator (Full Escape Sequences)</h1>
+
+  <input id="usernameInput" placeholder="Username">
+  <input id="passwordInput" placeholder="Password">
+  <input id="labelInput" placeholder="QR Label">
+
+  <h3>Drag/Click items to sequence:</h3>
+  <div id="palette" aria-label="palette">
+    <!-- Basic -->
+    <button class="draggable" data-type="username">Username</button>
+    <button class="draggable" data-type="password">Password</button>
+    <button class="draggable" data-type="tab">Tab</button>
+
+    <!-- Enter variants -->
+    <button class="draggable enterBtn" data-type="enter_lf">Enter (\\n)</button>
+    <button class="draggable enterBtn" data-type="enter_crlf">Enter (\\r\\n)</button>
+    <button class="draggable enterBtn" data-type="enter_cr">Enter (\\r)</button>
+
+    <!-- Extended keys -->
+    <button class="draggable specialBtn" data-type="esc">ESC</button>
+    <button class="draggable specialBtn" data-type="vtab">Vertical Tab</button>
+    <button class="draggable specialBtn" data-type="htab">Horizontal Tab</button>
+    <button class="draggable specialBtn" data-type="backspace">Backspace</button>
+    <button class="draggable specialBtn" data-type="lshift">Left Shift</button>
+    <button class="draggable specialBtn" data-type="rshift">Right Shift</button>
+    <button class="draggable specialBtn" data-type="ctrl">Control</button>
+    <button class="draggable specialBtn" data-type="lalt">Left Alt</button>
+    <button class="draggable specialBtn" data-type="ralt">Right Alt</button>
+    <button class="draggable specialBtn" data-type="arrow_up">↑</button>
+    <button class="draggable specialBtn" data-type="arrow_down">↓</button>
+    <button class="draggable specialBtn" data-type="arrow_left">←</button>
+    <button class="draggable specialBtn" data-type="arrow_right">→</button>
+
+    <!-- F1–F12 dynamically -->
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const p = document.getElementById('palette');
+        for (let i = 1; i <= 12; i++) {
+          const btn = document.createElement('button');
+          btn.className = 'draggable specialBtn';
+          btn.dataset.type = 'f' + i;
+          btn.textContent = 'F' + i;
+          p.appendChild(btn);
+        }
+      });
+    </script>
+  </div>
+
+  <div id="sequence" class="dropzone" aria-label="sequence"></div>
+
+  <div class="controls">
+    <label>QR Size: <span id="sizeValue">256</span> px</label>
+    <input type="range" id="qrSize" min="64" max="512" value="256">
+    <button id="generate">Generate QR</button>
+    <button id="printBtn">Print QR</button>
+    <button id="clearBtn" class="small muted">Clear</button>
+  </div>
+
+  <div id="printArea">
+    <canvas id="qrCanvas" width="256" height="256"></canvas>
+    <div id="qrLabel"></div>
+  </div>
+
+<script>
+const palette = document.getElementById('palette');
+const sequence = document.getElementById('sequence');
+const usernameInput = document.getElementById('usernameInput');
+const passwordInput = document.getElementById('passwordInput');
+const labelInput = document.getElementById('labelInput');
+const canvas = document.getElementById('qrCanvas');
+const qrLabel = document.getElementById('qrLabel');
+const generateBtn = document.getElementById('generate');
+const qrSizeSlider = document.getElementById('qrSize');
+const sizeValue = document.getElementById('sizeValue');
+const printBtn = document.getElementById('printBtn');
+const clearBtn = document.getElementById('clearBtn');
+
+let draggedType = null;
+
+// Create block
+function createBlock(type) {
+  const block = document.createElement('div');
+  block.className = 'block';
+  let label = type.toUpperCase();
+  const map = {
+    username: 'username', password: 'password', tab: 'Tab (\\t)',
+    enter_lf: 'Enter (\\n)', enter_crlf: 'Enter (\\r\\n)', enter_cr: 'Enter (\\r)',
+    esc: 'ESC', vtab: 'Vertical Tab (\\v)', htab: 'Horizontal Tab (\\t)',
+    backspace: 'Backspace (\\b)', lshift: 'Left Shift', rshift: 'Right Shift',
+    ctrl: 'Control', lalt: 'Left Alt', ralt: 'Right Alt',
+    arrow_up: '↑', arrow_down: '↓', arrow_left: '←', arrow_right: '→'
+  };
+  if (map[type]) label = map[type];
+  block.textContent = label;
+  const remove = document.createElement('span');
+  remove.className = 'remove'; remove.textContent = '✕';
+  remove.addEventListener('click', e => { e.stopPropagation(); block.remove(); });
+  block.appendChild(remove);
+  block.dataset.type = type;
+  block.draggable = true;
+  block.addEventListener('dragstart', e => { draggedType = block; block.classList.add('dragging'); });
+  block.addEventListener('dragend', () => { draggedType = null; block.classList.remove('dragging'); });
+  return block;
+}
+
+// Setup palette
+function setupPalette() {
+  palette.querySelectorAll('.draggable').forEach(btn => {
+    btn.draggable = true;
+    btn.addEventListener('dragstart', e => { draggedType = { type: e.target.dataset.type, fromPalette: true }; });
+    btn.addEventListener('click', e => sequence.appendChild(createBlock(e.currentTarget.dataset.type)));
+  });
+}
+setupPalette();
+
+// Drag/reorder
+sequence.addEventListener('dragover', e => {
+  e.preventDefault();
+  const afterElement = getDragAfterElement(sequence, e.clientX, e.clientY);
+  const draggingEl = (draggedType && draggedType.fromPalette) ? null : draggedType;
+  if (draggingEl) {
+    if (afterElement == null) sequence.appendChild(draggingEl);
+    else sequence.insertBefore(draggingEl, afterElement);
+  }
+});
+sequence.addEventListener('drop', e => {
+  e.preventDefault();
+  if (draggedType && draggedType.fromPalette) {
+    const block = createBlock(draggedType.type);
+    const afterElement = getDragAfterElement(sequence, e.clientX, e.clientY);
+    if (afterElement == null) sequence.appendChild(block);
+    else sequence.insertBefore(block, afterElement);
+  }
+  draggedType = null;
+});
+function getDragAfterElement(container, x, y) {
+  const els = [...container.querySelectorAll('.block:not(.dragging)')];
+  return els.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (closest === null) return (offset < 0) ? child : null;
+    return closest;
+  }, null);
+}
+
+// Build payload with real escape sequences
+function buildPayload() {
+  let payload = '';
+  sequence.querySelectorAll('.block').forEach(block => {
+    const t = block.dataset.type;
+    switch (t) {
+      case 'username': payload += usernameInput.value; break;
+      case 'password': payload += passwordInput.value; break;
+      case 'tab': payload += '\x09'; break;
+      case 'enter_lf': payload += '\x0A'; break;
+      case 'enter_crlf': payload += '\x0D\x0A'; break;
+      case 'enter_cr': payload += '\x0D'; break;
+      case 'esc': payload += '\x1B'; break;
+      case 'vtab': payload += '\x0B'; break;
+      case 'htab': payload += '\x09'; break;
+      case 'backspace': payload += '\x08'; break;
+      case 'arrow_up': payload += '\x1B[A'; break;
+      case 'arrow_down': payload += '\x1B[B'; break;
+      case 'arrow_right': payload += '\x1B[C'; break;
+      case 'arrow_left': payload += '\x1B[D'; break;
+      case 'lshift': payload += '<SHIFT>'; break;
+      case 'rshift': payload += '<SHIFT>'; break;
+      case 'ctrl': payload += '\x11'; break;
+      case 'lalt': payload += '<ALT>'; break;
+      case 'ralt': payload += '<ALT>'; break;
+      default:
+        // F1–F12
+        if (/^f\d+$/.test(t)) {
+          const n = parseInt(t.slice(1));
+          if (n <= 4) payload += '\x1B' + String.fromCharCode(79 + (n - 1)); // F1–F4
+          else payload += '\x1B[' + (10 + n) + '~'; // F5–F12
+        }
+    }
+  });
+  return payload;
+}
+
+// Generate QR
+generateBtn.addEventListener('click', () => {
+  const payload = buildPayload();
+  const size = parseInt(qrSizeSlider.value, 10);
+  canvas.width = canvas.height = size;
+  qrLabel.textContent = labelInput.value || '';
+  QRCode.toCanvas(canvas, payload, { errorCorrectionLevel:'M', width:size }, err => {
+    if (err) alert('Error generating QR: ' + err);
+  });
+});
+
+// Print / Clear
+printBtn.addEventListener('click', () => window.print());
+clearBtn.addEventListener('click', () => {
+  sequence.innerHTML = '';
+  usernameInput.value = passwordInput.value = labelInput.value = '';
+  qrLabel.textContent = '';
+  canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+});
+
+// Suppress F1–F12
+window.addEventListener('keydown', e => {
+  if (e.key.startsWith('F')) {
+    const num = parseInt(e.key.slice(1), 10);
+    if (!isNaN(num) && num >= 1 && num <= 12) e.preventDefault();
+  }
+}, {passive:false});
+
+window.addEventListener('load', () => labelInput.focus());
+</script>
+</body>
+</html>
