@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visual QR Builder — Auto-Update QR</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<style>
+body { font-family: system-ui, Arial, sans-serif; margin: 20px; background:#f6f7fb; }
+h1 { font-size: 18px; margin-bottom:10px; }
+input, label, select { padding: 6px; margin-right: 10px; margin-bottom:10px; }
+#palette, #sequence, #customCombo { display:flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.dropzone { min-height:50px; padding:10px; border:2px dashed #aaa; border-radius:8px; background:#fff; display:flex; gap:6px; flex-wrap: wrap; align-items:center; cursor:text; }
+.block { padding:6px 10px; background:#4caf50; color:white; border-radius:4px; cursor: grab; display:inline-flex; gap:8px; align-items:center; user-select:none; }
+.block.text { background:#1976d2; }
+.block.dragging { opacity:0.5; }
+.block .remove { font-weight:700; cursor:pointer; padding:0 6px; border-radius:3px; background:rgba(0,0,0,0.12); color:white; }
+canvas { margin-top:16px; border:1px solid #ccc; display:block; }
+#qrLabel { font-weight:600; margin-top:6px; font-size:16px; text-align:center; }
+.controls { margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+button { padding:8px 12px; border:none; border-radius:6px; background:#1f7aed; color:white; cursor:pointer; }
+button:active { transform:translateY(1px); }
+.small { padding:6px 8px; font-size:13px; }
+.muted { background:#888; }
+#customCombo { gap:5px; align-items:center; }
+@media print {
+  body * { visibility: hidden; }
+  #printArea, #printArea * { visibility: visible; }
+  #printArea { position: absolute; left:50%; top:50%; transform: translate(-50%, -50%); text-align:center; border:2px solid #000; padding:20px; background:white; }
+  canvas { border:none !important; }
+}
+</style>
+</head>
+<body>
+
+<h1>Visual QR Builder — Auto-Update QR</h1>
+
+<input id="usernameInput" placeholder="Username">
+<input id="passwordInput" placeholder="Password">
+<input id="labelInput" placeholder="QR Label">
+
+<h3>Drag/Click items or type text between blocks:</h3>
+<div id="palette"></div>
+
+<h3>Custom Combo Builder</h3>
+<div id="customCombo">
+  <label><input type="checkbox" id="ctrlChk"> Ctrl</label>
+  <label><input type="checkbox" id="shiftChk"> Shift</label>
+  <label><input type="checkbox" id="altChk"> Alt</label>
+  <select id="keySelect">
+    <option value="tab">Tab</option>
+    <option value="enter">Enter</option>
+    <option value="del">Del</option>
+    <option value="arrow_up">↑</option>
+    <option value="arrow_down">↓</option>
+    <option value="arrow_left">←</option>
+    <option value="arrow_right">→</option>
+    <option disabled>──── Function Keys ────</option>
+    <option value="f1">F1</option><option value="f2">F2</option><option value="f3">F3</option><option value="f4">F4</option>
+    <option value="f5">F5</option><option value="f6">F6</option><option value="f7">F7</option><option value="f8">F8</option>
+    <option value="f9">F9</option><option value="f10">F10</option><option value="f11">F11</option><option value="f12">F12</option>
+  </select>
+  <button id="addCustomCombo">Add Combo</button>
+</div>
+
+<div id="sequence" class="dropzone" tabindex="0"></div>
+
+<div class="controls">
+  <label>QR Size: <span id="sizeValue">256</span> px</label>
+  <input type="range" id="qrSize" min="64" max="512" value="256">
+  <button id="printBtn">Print QR</button>
+  <button id="clearBtn" class="small muted">Clear</button>
+</div>
+
+<div id="printArea">
+  <canvas id="qrCanvas" width="256" height="256"></canvas>
+  <div id="qrLabel"></div>
+</div>
+
+<script>
+const palette=document.getElementById('palette');
+const sequence=document.getElementById('sequence');
+const usernameInput=document.getElementById('usernameInput');
+const passwordInput=document.getElementById('passwordInput');
+const labelInput=document.getElementById('labelInput');
+const canvas=document.getElementById('qrCanvas');
+const qrLabel=document.getElementById('qrLabel');
+const qrSizeSlider=document.getElementById('qrSize');
+const sizeValue=document.getElementById('sizeValue');
+const printBtn=document.getElementById('printBtn');
+const clearBtn=document.getElementById('clearBtn');
+
+const ctrlChk=document.getElementById('ctrlChk');
+const shiftChk=document.getElementById('shiftChk');
+const altChk=document.getElementById('altChk');
+const keySelect=document.getElementById('keySelect');
+const addCustomCombo=document.getElementById('addCustomCombo');
+
+let draggedBlock=null;
+
+// palette setup
+const paletteButtons=[
+  {type:'username',label:'Username'},
+  {type:'password',label:'Password'},
+  {type:'tab',label:'Tab (\\t)'},
+  {type:'enter_lf',label:'Enter (\\n)'},
+  {type:'enter_crlf',label:'Enter (\\r\\n)'},
+  {type:'enter_cr',label:'Enter (\\r)'},
+  {type:'esc',label:'ESC'},
+  {type:'backspace',label:'Backspace (\\b)'},
+  {type:'arrow_up',label:'↑'},
+  {type:'arrow_down',label:'↓'},
+  {type:'arrow_left',label:'←'},
+  {type:'arrow_right',label:'→'}
+];
+for(let i=1;i<=12;i++) paletteButtons.push({type:'f'+i,label:'F'+i});
+paletteButtons.forEach(btn=>{
+  const b=document.createElement('button');
+  b.className='draggable';
+  b.dataset.type=btn.type;
+  b.textContent=btn.label;
+  b.addEventListener('click',()=>{
+    sequence.appendChild(createBlock(btn.type,btn.label));
+    autoGenerate();
+  });
+  palette.appendChild(b);
+});
+
+function createBlock(type,label=null,keys=null,textContent=null){
+  const block=document.createElement('div');
+  block.className='block';
+  block.dataset.type=type;
+  if(type==='combo' && keys) block.dataset.comboKeys=JSON.stringify(keys);
+  else if(type==='text' && textContent!==null) block.dataset.comboKeys=textContent;
+  block.textContent=label || textContent || type.toUpperCase();
+  if(type==='text') block.classList.add('text');
+
+  const remove=document.createElement('span');
+  remove.className='remove';
+  remove.textContent='✕';
+  remove.addEventListener('click',e=>{
+    e.stopPropagation();
+    block.remove();
+    autoGenerate();
+  });
+  block.appendChild(remove);
+
+  // drag support
+  block.draggable=true;
+  block.addEventListener('dragstart',()=>{draggedBlock=block; block.classList.add('dragging');});
+  block.addEventListener('dragend',()=>{draggedBlock=null; block.classList.remove('dragging'); autoGenerate();});
+
+  // double-click edit
+  if(type==='text'){
+    block.addEventListener('dblclick',()=>{
+      const oldText=block.dataset.comboKeys||'';
+      const input=document.createElement('input');
+      input.type='text';
+      input.value=oldText;
+      input.style.width='120px';
+      block.textContent='';
+      block.appendChild(input);
+      input.focus();
+      input.addEventListener('blur',()=>{
+        const newText=input.value;
+        block.dataset.comboKeys=newText;
+        block.textContent=newText;
+        block.appendChild(remove);
+        autoGenerate();
+      });
+      input.addEventListener('keydown',e=>{ if(e.key==='Enter'){input.blur();} });
+    });
+  }
+
+  return block;
+}
+
+// drag reorder
+sequence.addEventListener('dragover',e=>{
+  e.preventDefault();
+  const after=getDragAfterElement(sequence,e.clientY);
+  if(draggedBlock){
+    if(!after) sequence.appendChild(draggedBlock);
+    else sequence.insertBefore(draggedBlock,after);
+  }
+});
+function getDragAfterElement(container,y){
+  const els=[...container.querySelectorAll('.block:not(.dragging)')];
+  return els.reduce((closest,child)=>{
+    const box=child.getBoundingClientRect();
+    const offset=y-box.top-box.height/2;
+    if(offset<0&&!closest) return child;
+    return closest;
+  },null);
+}
+
+// custom combo builder
+addCustomCombo.addEventListener('click',()=>{
+  const keys=[];
+  if(ctrlChk.checked) keys.push('ctrl');
+  if(shiftChk.checked) keys.push('shift');
+  if(altChk.checked) keys.push('alt');
+  keys.push(keySelect.value);
+  const label=keys.map(k=>k.toUpperCase()).join(' + ');
+  sequence.appendChild(createBlock('combo',label,keys));
+  autoGenerate();
+});
+
+// free typing
+let typingActive=false;
+let inputBox=null;
+sequence.addEventListener('click',e=>{
+  if(e.target===sequence){
+    if(typingActive) return;
+    typingActive=true;
+    inputBox=document.createElement('input');
+    inputBox.type='text';
+    inputBox.placeholder='Type text...';
+    inputBox.style.minWidth='80px';
+    sequence.appendChild(inputBox);
+    inputBox.focus();
+    inputBox.addEventListener('keydown',ev=>{
+      if(ev.key==='Enter'||ev.key==='Tab'){
+        ev.preventDefault();
+        finalizeFreeText();
+      }
+    });
+    inputBox.addEventListener('blur',()=>finalizeFreeText());
+  }
+});
+function finalizeFreeText(){
+  if(!typingActive||!inputBox) return;
+  const text=inputBox.value.trim();
+  if(text!==''){
+    const block=createBlock('text',null,null,text);
+    sequence.insertBefore(block,inputBox);
+  }
+  inputBox.remove();
+  typingActive=false;
+  inputBox=null;
+  autoGenerate();
+}
+
+// payload builder
+function buildPayload(){
+  let payload='';
+  sequence.querySelectorAll('.block').forEach(block=>{
+    const type=block.dataset.type;
+    if(type==='combo'){
+      const keys=JSON.parse(block.dataset.comboKeys||'[]');
+      keys.forEach(k=>{
+        switch(k.toLowerCase()){
+          case 'ctrl': payload+='\xE0'; break;
+          case 'shift': payload+='\xE1'; break;
+          case 'alt': payload+='\xE2'; break;
+          case 'tab': payload+='\x09'; break;
+          case 'enter': payload+='\x0D'; break;
+          case 'del': payload+='\x7F'; break;
+          case 'arrow_up': payload+='\x1B[A'; break;
+          case 'arrow_down': payload+='\x1B[B'; break;
+          case 'arrow_left': payload+='\x1B[D'; break;
+          case 'arrow_right': payload+='\x1B[C'; break;
+          default:
+            if(/^f\d+$/i.test(k)){
+              const n=parseInt(k.slice(1));
+              payload+=(n<=4)?'\x1B'+String.fromCharCode(79+(n-1)):'\x1B['+(10+n)+'~';
+            }
+        }
+      });
+    } else if(type==='text'){
+      payload+=block.dataset.comboKeys||'';
+    } else {
+      switch(type){
+        case 'username': payload+=usernameInput.value; break;
+        case 'password': payload+=passwordInput.value; break;
+        case 'tab': payload+='\x09'; break;
+        case 'enter_lf': payload+='\x0A'; break;
+        case 'enter_crlf': payload+='\x0D\x0A'; break;
+        case 'enter_cr': payload+='\x0D'; break;
+        case 'esc': payload+='\x1B'; break;
+        case 'backspace': payload+='\x08'; break;
+        case 'arrow_up': payload+='\x1B[A'; break;
+        case 'arrow_down': payload+='\x1B[B'; break;
+        case 'arrow_left': payload+='\x1B[D'; break;
+        case 'arrow_right': payload+='\x1B[C'; break;
+        default:
+          if(/^f\d+$/i.test(type)){
+            const n=parseInt(type.slice(1));
+            payload+=(n<=4)?'\x1B'+String.fromCharCode(79+(n-1)):'\x1B['+(10+n)+'~';
+          }
+      }
+    }
+  });
+  return payload;
+}
+
+// auto-generate QR
+function autoGenerate(){
+  const payload=buildPayload();
+  const size=parseInt(qrSizeSlider.value,10);
+  canvas.width=canvas.height=size;
+  qrLabel.textContent=labelInput.value||'';
+  if(payload===''){
+    const ctx=canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    return;
+  }
+  QRCode.toCanvas(canvas,payload,{errorCorrectionLevel:'M',width:size});
+}
+
+// event listeners
+[usernameInput,passwordInput,labelInput].forEach(inp=>inp.addEventListener('input',autoGenerate));
+qrSizeSlider.addEventListener('input',()=>{
+  sizeValue.textContent=qrSizeSlider.value;
+  autoGenerate();
+});
+printBtn.addEventListener('click',()=>window.print());
+clearBtn.addEventListener('click',()=>{
+  sequence.innerHTML='';
+  usernameInput.value=passwordInput.value=labelInput.value='';
+  qrLabel.textContent='';
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+});
+</script>
+
+</body>
+</html>
