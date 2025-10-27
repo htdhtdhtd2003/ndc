@@ -1,0 +1,444 @@
+<!doctype html>
+<!-- scan-prescription.html
+     Live camera -> DataMatrix / OCR (Tesseract) extraction of LOT & EXP
+     - Uses BarcodeDetector when available
+     - Fallback to @zxing/library for DataMatrix
+     - Tesseract.js for OCR fallback (ROI overlay)
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prescription LOT & EXP Scanner</title>
+  <style>
+    :root {
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #06b6d4;
+      --muted: #94a3b8;
+    }
+    html,body { height:100%; margin:0; font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#fff; }
+    .wrap { max-width:980px; margin:12px auto; padding:14px; }
+    header { display:flex; gap:12px; align-items:center; margin-bottom:8px; }
+    h1 { font-size:18px; margin:0; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    button { background:var(--accent); color:#022; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600; }
+    button.secondary { background:#334155; color:#cbd5e1; }
+    #videoWrap { position:relative; background:#000; border-radius:10px; overflow:hidden; box-shadow: 0 6px 24px rgba(2,6,23,0.6); }
+    video { width:100%; height:auto; display:block; transform: scaleX(-1); /* mirror for user convenience */ }
+    canvas { display:none; } /* used behind scenes */
+    /* ROI overlay */
+    .roi {
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:58%;
+      height:28%;
+      transform:translate(-50%,-50%);
+      border:2px dashed rgba(255,255,255,0.65);
+      border-radius:8px;
+      pointer-events:none;
+      box-sizing:border-box;
+    }
+    .info { margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .panel { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,0.03); min-width:180px; }
+    .results { margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .field { font-size:13px; color:var(--muted); }
+    pre { white-space:pre-wrap; word-break:break-word; max-height:160px; overflow:auto; background:rgba(255,255,255,0.02); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.02); color:#fff; }
+    small { color:var(--muted); display:block; margin-top:6px; }
+    .badge { font-weight:700; color:#022; background:#a7f3d0; padding:6px 8px; border-radius:8px; display:inline-block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Prescription LOT & EXP Scanner</h1>
+      <div style="margin-left:auto" class="controls">
+        <button id="startBtn">Start Camera</button>
+        <button id="scanOnceBtn" class="secondary">Scan Now</button>
+        <button id="ocrBtn" class="secondary">OCR ROI</button>
+        <button id="stopBtn" class="secondary">Stop</button>
+      </div>
+    </header>
+
+    <div id="videoWrap">
+      <video id="video" autoplay playsinline></video>
+      <div class="roi" title="Align the label inside this box for OCR"></div>
+    </div>
+
+    <div class="info">
+      <div class="panel">
+        <div><strong>Detected (parsed)</strong></div>
+        <div id="parsed" style="margin-top:8px;">
+          <div><span class="field">LOT:</span> <span id="lotVal">—</span></div>
+          <div><span class="field">EXP:</span> <span id="expVal">—</span></div>
+          <small>Tap <em>Scan Now</em> to check barcodes continuously or <em>OCR ROI</em> to run OCR on the overlay area.</small>
+        </div>
+      </div>
+
+      <div class="panel" style="flex:1;">
+        <div><strong>Raw outputs & logs</strong></div>
+        <pre id="log">logs will appear here</pre>
+      </div>
+    </div>
+
+    <!-- hidden canvas for frame grabs and preprocessing -->
+    <canvas id="captureCanvas"></canvas>
+
+    <p style="margin-top:12px; color:var(--muted); font-size:13px;">
+      Notes: Requires HTTPS. Use rear camera for best results. Good lighting & steady focus improves OCR and Data Matrix decoding.
+    </p>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+  <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+
+  <script>
+  (function(){
+    const video = document.getElementById('video');
+    const captureCanvas = document.getElementById('captureCanvas');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const scanOnceBtn = document.getElementById('scanOnceBtn');
+    const ocrBtn = document.getElementById('ocrBtn');
+    const logEl = document.getElementById('log');
+    const lotVal = document.getElementById('lotVal');
+    const expVal = document.getElementById('expVal');
+    const roi = document.querySelector('.roi');
+
+    let stream = null;
+    let scanLoop = null;
+    let barcodeDetector = null;
+    let zxingReader = null;
+    let continuousScanning = false;
+
+    // small helpers
+    function log(...args){
+      console.log(...args);
+      logEl.textContent = (new Date()).toLocaleTimeString() + " — " + args.map(a=> (typeof a === 'string'? a : JSON.stringify(a))).join(' ') + "\n" + logEl.textContent;
+    }
+
+    function setParsed(lot, exp){
+      if(lot) lotVal.textContent = lot;
+      if(exp) expVal.textContent = exp;
+    }
+
+    // robust regexes for LOT and EXP
+    // matches a lot like: LOT: ABC123, Lot No. 12345, Batch# 00123
+    const lotRegex = /(?:LOT|L\.?OT|LOT\.?|BATCH|BATCH#|BATCH NO|LOT NO|LN|BN)[\s:\-#]*([A-Z0-9\-\/]{3,40})/i;
+    // matches expiration patterns: EXP, EXPIRY, Expires, USE BY, MM/YY, MM-DD-YYYY, YYYY-MM-DD, Mmm YYYY (e.g., Jan 2026)
+    const expRegexes = [
+      /(?:EXP|EXPIRY|EXP\.?|EXPIRES|USE BY|BEST BEFORE)[\s:\-]*([0-3]?\d[\/\-\.\s][0-1]?\d[\/\-\.\s](?:\d{2,4}))/i, // dd/mm/yyyy forms
+      /(?:EXP|EXPIRY|EXP\.?|EXPIRES|USE BY|BEST BEFORE)[\s:\-]*([0-1]?\d[\/\-\.\s]?\d{2})/i, // mm/yy
+      /(?:EXP|EXPIRY|EXP\.?|EXPIRES|USE BY|BEST BEFORE)[\s:\-]*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*\d{4})/i,
+      /((?:20|19)\d{2}[\-\/\.][0-1]?\d[\-\/\.][0-3]?\d)/ // iso-ish
+    ];
+
+    function extractFromText(text){
+      text = (text||"").replace(/\r/g,' ').replace(/\n/g,' ').replace(/\s{2,}/g,' ').trim();
+      log("Extracting from:", text);
+      let lot = null, exp = null;
+      let m = text.match(lotRegex);
+      if(m) lot = m[1].trim();
+      // try more blind matches for lot if labels like "LOT" absent: often LOT is like uppercase letters+numbers with length 4-12
+      if(!lot){
+        let blind = text.match(/\b([A-Z0-9]{4,20})\b/);
+        if(blind) lot = blind[1];
+      }
+
+      for(const rx of expRegexes){
+        let em = text.match(rx);
+        if(em){
+          exp = em[1].trim();
+          break;
+        }
+      }
+      // also try to find standalone date patterns if not found via keywords
+      if(!exp){
+        const dates = text.match(/\b(0?[1-9]|[12][0-9]|3[01])[\/\-\.\s](0?[1-9]|1[0-2])[\/\-\.\s](\d{2,4})\b/);
+        if(dates) exp = dates[0];
+        else {
+          const mmmy = text.match(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*\d{4}\b/i);
+          if(mmmy) exp = mmmy[0];
+        }
+      }
+
+      return { lot, exp, raw: text };
+    }
+
+    // try native BarcodeDetector if supported
+    async function initBarcodeDetector(){
+      if('BarcodeDetector' in window){
+        const supportedFormats = await window.BarcodeDetector.getSupportedFormats();
+        log("Native BarcodeDetector formats:", supportedFormats);
+        // prefer data matrix and common formats
+        const want = ['data_matrix','qr_code','pdf417','aztec','code_128','code_39'];
+        const formats = supportedFormats.filter(f => want.includes(f) );
+        try {
+          barcodeDetector = new BarcodeDetector({formats: formats.length ? formats : supportedFormats});
+          log("BarcodeDetector initialized with formats:", barcodeDetector);
+        } catch(err){
+          log("BarcodeDetector init error:", err);
+          barcodeDetector = null;
+        }
+      } else {
+        log("BarcodeDetector not available in this browser");
+      }
+    }
+
+    // fallback: initialize ZXing reader
+    function initZxing(){
+      try {
+        const ZXing = window.ZXing;
+        if(ZXing && ZXing.BrowserDatamatrixCodeReader){
+          zxingReader = new ZXing.BrowserDatamatrixCodeReader();
+          log("ZXing DataMatrix reader initialized");
+        } else if(window.ZXing && ZXing.BrowserMultiFormatReader){
+          zxingReader = new ZXing.BrowserMultiFormatReader();
+          log("ZXing MultiFormat reader initialized");
+        } else {
+          log("ZXing library loaded but reader not available");
+        }
+      } catch(e){
+        log("ZXing init error:", e);
+      }
+    }
+
+    // open camera (prefer rear)
+    async function startCamera(){
+      stopCamera();
+      const constraints = {
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        await video.play();
+        // adjust canvas size
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        log("Camera started:", video.videoWidth, video.videoHeight);
+        await initBarcodeDetector();
+        initZxing();
+        // start continuous scanning loop by default? leave off unless user presses
+        //startContinuousScan();
+      } catch(err){
+        log("Camera error:", err);
+        alert("Camera error: " + err.message + "\nMake sure this page is served over HTTPS and camera access is allowed.");
+      }
+    }
+
+    function stopCamera(){
+      if(scanLoop){ clearInterval(scanLoop); scanLoop = null; continuousScanning = false; }
+      if(stream){
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      if(video){
+        video.pause();
+        video.srcObject = null;
+      }
+      log("Camera stopped");
+    }
+
+    async function scanFrameForBarcode(){
+      if(!video || video.readyState < 2) return null;
+      // draw current frame to canvas
+      const ctx = captureCanvas.getContext('2d');
+      captureCanvas.width = video.videoWidth;
+      captureCanvas.height = video.videoHeight;
+      // flip horizontally to match mirrored video for user - but decoding doesn't require flip
+      ctx.save();
+      ctx.scale(-1,1);
+      ctx.drawImage(video, -captureCanvas.width, 0, captureCanvas.width, captureCanvas.height);
+      ctx.restore();
+
+      // try native barcode detector first
+      if(barcodeDetector){
+        try {
+          const imageBitmap = captureCanvas.transferToImageBitmap ? captureCanvas.transferToImageBitmap() : await createImageBitmap(captureCanvas);
+          const barcodes = await barcodeDetector.detect(imageBitmap);
+          if(barcodes && barcodes.length){
+            log("Native barcodes:", barcodes);
+            // return first
+            return {type: 'native', raw: barcodes[0].rawValue ?? barcodes[0].rawText ?? barcodes[0].rawValue, full: barcodes[0]};
+          }
+        } catch(err){
+          log("Native detect error:", err);
+        }
+      }
+
+      // fallback to ZXing on the raw canvas image data
+      if(zxingReader){
+        try {
+          // toDataURL -> blob -> xml; ZXing reader expects video element or image
+          // use decodeFromCanvasRow? but easiest: get data URL and pass to decodeFromImage
+          const dataUrl = captureCanvas.toDataURL('image/png');
+          const result = await zxingReader.decodeFromImage(undefined, dataUrl);
+          if(result){
+            log("ZXing result:", result.text || result);
+            return {type:'zxing', raw: result.text || result};
+          }
+        } catch(err){
+          // ZXing throws if none found; ignore
+        }
+      }
+
+      return null;
+    }
+
+    // Continuous scanning (every n ms)
+    function startContinuousScan(interval = 900){
+      if(scanLoop) clearInterval(scanLoop);
+      continuousScanning = true;
+      scanLoop = setInterval(async ()=>{
+        const res = await scanFrameForBarcode();
+        if(res){
+          log("Barcode detected via", res.type, ":", res.raw);
+          const parsed = extractFromText(res.raw);
+          setParsed(parsed.lot, parsed.exp);
+          // if you want to stop after first detection, uncomment below:
+          // clearInterval(scanLoop);
+        }
+      }, interval);
+      log("Continuous scanning started (interval ms):", interval);
+    }
+
+    // Single explicit scan (for user-initiated)
+    async function scanOnce(){
+      const res = await scanFrameForBarcode();
+      if(res){
+        log("Scan once result:", res);
+        const parsed = extractFromText(res.raw);
+        setParsed(parsed.lot, parsed.exp);
+      } else {
+        log("No barcode detected on this frame.");
+        alert("No barcode / datamatrix detected. Try aligning the Data Matrix inside the ROI and press Scan Now again, or use OCR.");
+      }
+    }
+
+    // OCR the ROI area (user aligns label in the dashed box)
+    async function ocrROI(){
+      if(!video || video.readyState < 2){
+        alert("Start the camera first.");
+        return;
+      }
+      const vw = video.videoWidth, vh = video.videoHeight;
+      captureCanvas.width = vw; captureCanvas.height = vh;
+      const ctx = captureCanvas.getContext('2d');
+      // draw mirrored frame same as visible video (so user sees same orientation)
+      ctx.save();
+      ctx.scale(-1,1);
+      ctx.drawImage(video, -vw, 0, vw, vh);
+      ctx.restore();
+
+      // compute ROI bounds in canvas coordinates
+      const wrap = document.getElementById('videoWrap');
+      const wrapRect = wrap.getBoundingClientRect();
+      const roiRect = roi.getBoundingClientRect();
+      const videoRect = video.getBoundingClientRect();
+      // ratio of video pixel size to displayed size
+      const scaleX = vw / videoRect.width;
+      const scaleY = vh / videoRect.height;
+      // roi's top-left relative to video client rect
+      const rx = (roiRect.left - videoRect.left) * scaleX;
+      const ry = (roiRect.top - videoRect.top) * scaleY;
+      const rw = roiRect.width * scaleX;
+      const rh = roiRect.height * scaleY;
+
+      // get ROI image data
+      const roiData = ctx.getImageData(Math.max(0,rx), Math.max(0,ry), Math.min(wv=rw, captureCanvas.width), Math.min(hv=rh, captureCanvas.height));
+      // create temporary canvas to preprocess
+      const tmp = document.createElement('canvas');
+      tmp.width = roiData.width; tmp.height = roiData.height;
+      tmp.getContext('2d').putImageData(roiData,0,0);
+
+      // Preprocess: convert to grayscale, increase contrast, optional resize for Tesseract
+      const pctx = tmp.getContext('2d');
+      let imgData = pctx.getImageData(0,0,tmp.width,tmp.height);
+      const d = imgData.data;
+      for(let i=0;i<d.length;i+=4){
+        // grayscale
+        const gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+        // simple unsharp-like boost for contrast
+        const boosted = Math.min(255, Math.max(0, (gray - 128) * 1.4 + 128 ));
+        d[i]=d[i+1]=d[i+2]=boosted;
+      }
+      pctx.putImageData(imgData,0,0);
+
+      // optional upscale to help OCR
+      const scaleUp = Math.min(3, Math.max(1, 1500 / Math.max(tmp.width, tmp.height)));
+      const finalCanvas = document.createElement('canvas');
+      finalCanvas.width = Math.round(tmp.width * scaleUp);
+      finalCanvas.height = Math.round(tmp.height * scaleUp);
+      finalCanvas.getContext('2d').drawImage(tmp, 0, 0, finalCanvas.width, finalCanvas.height);
+
+      // show a quick preview in logs for debugging
+      try {
+        const previewDataUrl = finalCanvas.toDataURL('image/png');
+        log("OCR ROI captured (size px):", finalCanvas.width, finalCanvas.height);
+        // run Tesseract
+        log("Starting Tesseract OCR (this may take a few seconds)...");
+        const worker = Tesseract.createWorker({
+          logger: m => log("Tesseract:", m.status, Math.round(m.progress*100)+"%")
+        });
+        await worker.load();
+        await worker.loadLanguage('eng');
+        await worker.initialize('eng');
+        // restrict OCR to alphanumeric and punctuation commonly found on labels
+        const tessOpts = { tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/:.- " };
+        await worker.setParameters(tessOpts);
+        const { data: { text } } = await worker.recognize(finalCanvas);
+        await worker.terminate();
+        log("Tesseract raw text:", text);
+        const parsed = extractFromText(text);
+        setParsed(parsed.lot, parsed.exp);
+      } catch(err){
+        log("OCR error:", err);
+        alert("OCR failed: " + err.message);
+      }
+    }
+
+    // UI wiring
+    startBtn.addEventListener('click', async ()=>{
+      await startCamera();
+    });
+
+    stopBtn.addEventListener('click', ()=>{
+      stopCamera();
+    });
+
+    scanOnceBtn.addEventListener('click', async ()=>{
+      await scanOnce();
+    });
+
+    ocrBtn.addEventListener('click', async ()=>{
+      await ocrROI();
+    });
+
+    // long-press on video to start continuous scanning; click to stop
+    let pressTimer = null;
+    video.addEventListener('touchstart', (e)=>{
+      pressTimer = setTimeout(()=> startContinuousScan(800), 500);
+    }, {passive:true});
+    video.addEventListener('touchend', (e)=>{ if(pressTimer) clearTimeout(pressTimer); });
+    video.addEventListener('click', ()=>{
+      if(continuousScanning) { if(scanLoop){ clearInterval(scanLoop); scanLoop=null; continuousScanning=false; log("Continuous scanning stopped"); } else { startContinuousScan(800); } }
+      else startContinuousScan(800);
+    });
+
+    // auto-start if prefer (commented out)
+    //startCamera();
+
+    // on page close, stop camera
+    window.addEventListener('beforeunload', stopCamera);
+  })();
+  </script>
+</body>
+</html>
