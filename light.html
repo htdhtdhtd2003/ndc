@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phone Flashlight Toggle</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; background:#f4f6fb; }
+    .card { background:#fff; padding:20px; border-radius:12px; box-shadow:0 6px 24px rgba(0,0,0,0.08); width:320px; text-align:center;}
+    button { font-size:18px; padding:12px 18px; border-radius:8px; border:0; cursor:pointer; }
+    #toggle { background:#0b63d6; color:white; width:100%; }
+    #stop { background:#e0e0e0; margin-top:10px; width:100%; }
+    p { margin:12px 0 0; color:#333; font-size:14px; }
+    small { color:#666; display:block; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Flashlight</h2>
+    <button id="toggle">Turn On</button>
+    <button id="stop" style="display:none;">Stop Camera</button>
+    <p id="status">Status: idle</p>
+    <small id="hint">Hint: Works best in Chrome on Android. iOS Safari does not allow programmatic torch control.</small>
+  </div>
+
+  <script>
+    let stream = null;
+    let track = null;
+    let torchOn = false;
+
+    const toggleBtn = document.getElementById('toggle');
+    const stopBtn = document.getElementById('stop');
+    const statusEl = document.getElementById('status');
+
+    function setStatus(text) { statusEl.textContent = 'Status: ' + text; }
+
+    async function ensureStream() {
+      if (stream && track && track.readyState === 'live') return;
+      try {
+        // Request the environment (rear) camera
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+        track = stream.getVideoTracks()[0];
+        stopBtn.style.display = 'block';
+      } catch (err) {
+        console.error('getUserMedia error:', err);
+        throw new Error('Unable to access camera. Make sure you gave permission and your device has a rear camera.');
+      }
+    }
+
+    async function supportsTorch() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+      try {
+        await ensureStream();
+        if (!track) return false;
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        return !!caps.torch;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function setTorch(on) {
+      if (!track) throw new Error('Camera track not available');
+      // Some browsers expect applyConstraints advanced torch setting:
+      try {
+        await track.applyConstraints({ advanced: [{ torch: on }] });
+        torchOn = on;
+        setStatus(on ? 'torch ON' : 'torch OFF');
+        toggleBtn.textContent = on ? 'Turn Off' : 'Turn On';
+      } catch (err) {
+        // fallback: some older environments won't support torch constraints
+        console.error('applyConstraints error:', err);
+        throw new Error('Torch control failed. Your browser/device may not support programmatic torch control.');
+      }
+    }
+
+    async function toggleTorch() {
+      setStatus('checking support...');
+      const ok = await supportsTorch();
+      if (!ok) {
+        setStatus('torch not supported on this device/browser.');
+        return;
+      }
+
+      try {
+        // ensure we have a stream/track
+        await ensureStream();
+        await setTorch(!torchOn);
+      } catch (err) {
+        setStatus(err.message || 'Error toggling torch');
+      }
+    }
+
+    toggleBtn.addEventListener('click', async () => {
+      toggleBtn.disabled = true;
+      try {
+        await toggleTorch();
+      } finally {
+        toggleBtn.disabled = false;
+      }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      // turn torch off first if necessary
+      (async () => {
+        try {
+          if (track && torchOn) {
+            try { await setTorch(false); } catch(e) { /* ignore */ }
+          }
+        } finally {
+          // stop tracks & cleanup
+          if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+            stream = null;
+            track = null;
+            torchOn = false;
+            toggleBtn.textContent = 'Turn On';
+            stopBtn.style.display = 'none';
+            setStatus('camera stopped');
+          }
+        }
+      })();
+    });
+
+    // Clean up when leaving page
+    window.addEventListener('pagehide', () => {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    });
+  </script>
+</body>
+</html>
