@@ -41,12 +41,6 @@
     "cprDate": "2026-11-14"
   },
   {
-    "role": "RPH",
-    "name": "Subha George James",
-    "licenseDate": "2027-05-31",
-    "cprDate": "2027-03-31"
-  },
-  {
     "role": "TECH",
     "name": "Johanna Wise",
     "licenseDate": "2025-11-30",
