@@ -1,1 +1,62 @@
-[]
+[
+  {
+    "role": "RPH",
+    "name": "Jimmy Huynh",
+    "licenseDate": "2026-01-31",
+    "cprDate": ""
+  },
+  {
+    "role": "RPH",
+    "name": "Tuan Rassool",
+    "licenseDate": "2027-02-28",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Deborah Irene Rosas",
+    "licenseDate": "2026-04-30",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Jo Ann Rodriguez",
+    "licenseDate": "2026-08-31",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Kimberly Ann Jackson",
+    "licenseDate": "2027-08-31",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Martin Morales",
+    "licenseDate": "2026-02-28",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Mazin Khalid Ali",
+    "licenseDate": "2026-07-31",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Natalia Guzman",
+    "licenseDate": "2027-03-31",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Serena Lin",
+    "licenseDate": "2026-09-30",
+    "cprDate": ""
+  },
+  {
+    "role": "TECH",
+    "name": "Yazmin Barcenas",
+    "licenseDate": "2027-07-31",
+    "cprDate": ""
+  }
+]
