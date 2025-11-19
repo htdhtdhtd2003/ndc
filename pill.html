@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial‑scale=1" />
+  <title>Pill Counter — Auto + Manual Markers</title>
+  <style>
+    :root { --bg:#f4f6f8; --card:#fff; --accent:#0b76ef; --danger:#e23a3a; }
+    body{ font-family:system-ui,Arial,sans-serif; margin:0; background:var(--bg); color:#0b1a2b; }
+    .app{ max-width:1100px; margin:18px auto; padding:16px; display:grid; gap:12px; }
+    header{ display:flex; gap:12px; align-items:center; }
+    h1{ font-size:1.1rem; margin:0; }
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .card{ background:var(--card); border-radius:10px; box-shadow:0 6px 18px rgba(11,23,40,0.06); padding:12px; }
+    .layout{ display:grid; grid-template-columns: 1fr 300px; gap:12px; align-items:start; }
+    .canvas-wrap{ background:#111; display:flex; justify-content:center; align-items:center; min-height:420px; border-radius:8px; overflow:hidden; position:relative; }
+    canvas{ max-width:100%; height:auto; touch-action:none; display:block; }
+    .side{ display:flex; flex-direction:column; gap:8px; }
+    .total{ font-weight:700; font-size:1.2rem; color:var(--accent); }
+    .marker-list{ max-height:360px; overflow:auto; padding:6px; border-radius:6px; border:1px solid #eef2f6; }
+    .marker-row{ display:flex; justify-content:space-between; gap:8px; padding:6px; border-bottom:1px dashed #f0f3f6; align-items:center; }
+    .marker-row:last-child{ border-bottom:none; }
+    button, input[type=file]{ font:inherit; padding:8px 10px; border-radius:8px; border:1px solid #dbe7fb; background:white; cursor:pointer; }
+    button.primary{ background:var(--accent); color:#fff; border: none; }
+    button.danger{ background:var(--danger); color:#fff; border:none; }
+    .muted{ color:#56667a; font-size:0.9rem; }
+    .small{ font-size:0.85rem; padding:6px 8px; }
+    .controls .file-label{ display:inline-block; }
+    .hint{ font-size:0.85rem; color:#5c6b80; margin-top:6px; }
+    @media (max-width:880px){ .layout{ grid-template-columns: 1fr; } .side{ order:2; } .canvas-wrap{ order:1; } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Pill counter — auto detect + manual mark</h1>
+    <div style="flex:1"></div>
+    <div class="controls">
+      <label class="card file-label">
+        <input id="file" type="file" accept="image/*" capture="environment" style="display:none">
+        <span class="small">📷 Take / Choose Photo</span>
+      </label>
+      <button id="undo" class="small">↩ Undo</button>
+      <button id="clear" class="small">🗑 Clear</button>
+      <button id="download" class="small primary">⬇ Download</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="card">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="canvas"></canvas>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px; justify-content:space-between; align-items:center;">
+        <div class="muted">Tap / click to place marker. Drag to move.</div>
+        <div class="total card" id="total">Total: 0</div>
+      </div>
+      <div class="hint">Tip: use your phone camera to capture pills on a flat background, then adjust auto‑markers or tap additional manually.</div>
+    </div>
+
+    <aside class="side card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>Markers</strong>
+        <span class="muted">Counted: <span id="count">0</span></span>
+      </div>
+      <div class="marker-list" id="markerList">
+        <!-- marker rows -->
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="renumber" class="small">Renumber</button>
+        <button id="fit" class="small">Fit to view</button>
+      </div>
+      <div style="margin-top:10px;">
+        <label class="muted">Export filename:</label>
+        <input type="text" id="filename" value="pill-annotated.png" style="width:100%; margin-top:6px; padding:8px; border-radius:6px; border:1px solid #e6eef9;">
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- Load OpenCV.js -->
+<script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
+
+<script>
+(function(){
+  const fileEl = document.getElementById('file');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const totalEl = document.getElementById('total');
+  const countEl = document.getElementById('count');
+  const markerListEl = document.getElementById('markerList');
+  const undoBtn = document.getElementById('undo');
+  const clearBtn = document.getElementById('clear');
+  const downloadBtn = document.getElementById('download');
+  const renumberBtn = document.getElementById('renumber');
+  const fitBtn = document.getElementById('fit');
+  const filenameEl = document.getElementById('filename');
+  const canvasWrap = document.getElementById('canvasWrap');
+
+  let img = new Image();
+  let imgLoaded = false;
+  let markers = []; // {x: imageCoordX, y: imageCoordY}
+  let dragging = null;
+  let dragOffset = {x:0,y:0};
+  let canvasScale = 1;
+  let displayW = 0, displayH = 0;
+
+  let autoDetected = false; // flag to indicate we've done auto detection
+
+  // Wait for OpenCV to be ready
+  function onOpenCvReady() {
+    console.log('OpenCV.js is ready');
+    // You could optionally enable a UI indicator
+  }
+  if (typeof cv === 'undefined') {
+    document.addEventListener('opencvready', onOpenCvReady);
+  } else {
+    onOpenCvReady();
+  }
+
+  fileEl.addEventListener('change', (e)=>{
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    const url = URL.createObjectURL(f);
+    img = new Image();
+    img.onload = ()=> {
+      imgLoaded = true;
+      markers = [];
+      autoDetected = false;
+      fitCanvasToImage();
+      draw();
+      URL.revokeObjectURL(url);
+      // trigger auto‑detection after small delay (so image drawn)
+      setTimeout(runAutoDetect, 100);
+    };
+    img.src = url;
+  });
+
+  function fitCanvasToImage(){
+    if(!imgLoaded) return;
+    const maxW = canvasWrap.clientWidth;
+    const maxH = Math.max(420, window.innerHeight * 0.4);
+    const ratio = img.naturalWidth / img.naturalHeight;
+    let w = maxW;
+    let h = Math.round(w / ratio);
+    if(h > maxH){
+      h = maxH;
+      w = Math.round(h * ratio);
+    }
+    canvas.width = Math.round(img.naturalWidth);
+    canvas.height = Math.round(img.naturalHeight);
+    displayW = w;
+    displayH = h;
+    canvas.style.width = displayW + 'px';
+    canvas.style.height = displayH + 'px';
+    canvasScale = canvas.width / displayW;
+    draw();
+  }
+
+  function draw(){
+    if(!imgLoaded){
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0,0, canvas.width, canvas.height);
+    } else {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      markers.forEach((m, idx)=>{
+        drawMarker(ctx, m.x, m.y, idx+1);
+      });
+    }
+    updateUI();
+  }
+
+  function drawMarker(ctxLocal, xImg, yImg, number){
+    const r = Math.max(14, Math.round(Math.min(canvas.width, canvas.height) * 0.02));
+    ctxLocal.beginPath();
+    ctxLocal.lineWidth = Math.max(3, Math.round(r * 0.18));
+    ctxLocal.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctxLocal.fillStyle = 'rgba(11,118,239,0.95)';
+    ctxLocal.arc(xImg, yImg, r, 0, Math.PI*2);
+    ctxLocal.fill();
+    ctxLocal.stroke();
+
+    ctxLocal.beginPath();
+    ctxLocal.fillStyle = 'rgba(255,255,255,0.95)';
+    ctxLocal.arc(xImg, yImg, Math.max(7, Math.round(r*0.55)), 0, Math.PI*2);
+    ctxLocal.fill();
+
+    ctxLocal.fillStyle = '#0b1a2b';
+    ctxLocal.font = Math.round(r * 0.9) + 'px system-ui, Arial';
+    ctxLocal.textAlign = 'center';
+    ctxLocal.textBaseline = 'middle';
+    ctxLocal.fillText(String(number), xImg, yImg + 1);
+  }
+
+  function clientToImageCoords(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const xOnDisplay = clientX - rect.left;
+    const yOnDisplay = clientY - rect.top;
+    const x = Math.max(0, Math.min(displayW, xOnDisplay));
+    const y = Math.max(0, Math.min(displayH, yOnDisplay));
+    const imgX = Math.round(x * canvasScale);
+    const imgY = Math.round(y * canvasScale);
+    return { x: imgX, y: imgY };
+  }
+
+  function addMarker(imgX, imgY){
+    markers.push({ x: imgX, y: imgY });
+    draw();
+  }
+
+  function findMarkerAt(imgX, imgY){
+    const hitR = Math.max(16, Math.round(Math.min(canvas.width, canvas.height) * 0.03));
+    for(let i=markers.length-1;i>=0;i--){
+      const m = markers[i];
+      const dx = m.x - imgX, dy = m.y - imgY;
+      if(dx*dx + dy*dy <= hitR*hitR) return i;
+    }
+    return -1;
+  }
+
+  let isPointerDown = false;
+
+  function onPointerDown(clientX, clientY){
+    if(!imgLoaded) return;
+    const p = clientToImageCoords(clientX, clientY);
+    const idx = findMarkerAt(p.x, p.y);
+    if(idx >= 0){
+      dragging = idx;
+      dragOffset.x = markers[idx].x - p.x;
+      dragOffset.y = markers[idx].y - p.y;
+    } else {
+      addMarker(p.x, p.y);
+      dragging = markers.length - 1;
+      dragOffset.x = 0; dragOffset.y = 0;
+    }
+    isPointerDown = true;
+  }
+
+  function onPointerMove(clientX, clientY){
+    if(!imgLoaded) return;
+    if(dragging === null) return;
+    const p = clientToImageCoords(clientX, clientY);
+    markers[dragging].x = Math.max(0, Math.min(canvas.width, p.x + dragOffset.x));
+    markers[dragging].y = Math.max(0, Math.min(canvas.height, p.y + dragOffset.y));
+    draw();
+  }
+
+  function onPointerUp(){
+    dragging = null; isPointerDown = false;
+  }
+
+  canvas.addEventListener('mousedown', (ev)=>{
+    ev.preventDefault();
+    onPointerDown(ev.clientX, ev.clientY);
+  });
+  window.addEventListener('mousemove', (ev)=>{
+    if(!isPointerDown) return;
+    ev.preventDefault();
+    onPointerMove(ev.clientX, ev.clientY);
+  });
+  window.addEventListener('mouseup', (ev)=>{
+    if(!isPointerDown) return;
+    onPointerUp();
+  });
+  canvas.addEventListener('touchstart', (ev)=>{
+    ev.preventDefault();
+    const t = ev.touches[0];
+    onPointerDown(t.clientX, t.clientY);
+  }, { passive:false });
+  window.addEventListener('touchmove', (ev)=>{
+    if(!isPointerDown) return;
+    ev.preventDefault();
+    const t = ev.touches[0];
+    onPointerMove(t.clientX, t.clientY);
+  }, { passive:false });
+  window.addEventListener('touchend', (ev)=>{
+    if(!isPointerDown) return;
+    onPointerUp();
+  });
+
+  function updateUI(){
+    countEl.textContent = markers.length;
+    totalEl.textContent = 'Total: ' + markers.length;
+    markerListEl.innerHTML = '';
+    markers.forEach((m, i)=>{
+      const row = document.createElement('div');
+      row.className = 'marker-row';
+      row.innerHTML = `<div>#${i+1} — x:${Math.round(m.x)}, y:${Math.round(m.y)}</div>`;
+      const actions = document.createElement('div');
+      const del = document.createElement('button');
+      del.className = 'small';
+      del.textContent = 'Delete';
+      del.addEventListener('click', ()=>{ markers.splice(i,1); renumber(); draw(); });
+      const centerBtn = document.createElement('button');
+      centerBtn.className = 'small';
+      centerBtn.textContent = 'Center';
+      centerBtn.addEventListener('click', ()=>{ const rect = canvas.getBoundingClientRect(); window.scrollTo({ top: rect.top + window.scrollY - 60, behavior:'smooth' }); });
+      actions.appendChild(centerBtn);
+      actions.appendChild(del);
+      row.appendChild(actions);
+      markerListEl.appendChild(row);
+    });
+  }
+
+  undoBtn.addEventListener('click', ()=>{
+    if(markers.length) markers.pop();
+    draw();
+  });
+
+  clearBtn.addEventListener('click', ()=>{
+    if(!confirm('Clear all markers?')) return;
+    markers = [];
+    draw();
+  });
+
+  function renumber(){
+    // array order remains, numbering is dynamic in drawing
+    draw();
+  }
+  renumberBtn.addEventListener('click', ()=>{ renumber(); });
+
+  fitBtn.addEventListener('click', ()=>{ fitCanvasToImage(); });
+
+  downloadBtn.addEventListener('click', ()=>{
+    if(!imgLoaded){ alert('No image loaded.'); return; }
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = img.naturalWidth;
+    outCanvas.height = img.naturalHeight;
+    const outCtx = outCanvas.getContext('2d');
+    outCtx.drawImage(img, 0, 0, outCanvas.width, outCanvas.height);
+    const scale = outCanvas.width / canvas.width;
+    markers.forEach((m, idx)=>{
+      const x = Math.round(m.x * scale);
+      const y = Math.round(m.y * scale);
+      const r = Math.max(14, Math.round(Math.min(outCanvas.width, outCanvas.height) * 0.02));
+      outCtx.beginPath();
+      outCtx.lineWidth = Math.max(3, Math.round(r * 0.18));
+      outCtx.strokeStyle = 'rgba(255,255,255,0.9)';
+      outCtx.fillStyle = 'rgba(11,118,239,0.95)';
+      outCtx.arc(x, y, r, 0, Math.PI*2);
+      outCtx.fill();
+      outCtx.stroke();
+      outCtx.beginPath();
+      outCtx.fillStyle = 'rgba(255,255,255,0.95)';
+      outCtx.arc(x, y, Math.max(7, Math.round(r*0.55)), 0, Math.PI*2);
+      outCtx.fill();
+      outCtx.fillStyle = '#0b1a2b';
+      outCtx.font = Math.round(r * 0.9) + 'px system-ui, Arial';
+      outCtx.textAlign = 'center';
+      outCtx.textBaseline = 'middle';
+      outCtx.fillText(String(idx+1), x, y + 1);
+    });
+    outCanvas.toBlob((blob)=>{
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filenameEl.value || 'pill-annotated.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    }, 'image/png');
+  });
+
+  window.addEventListener('resize', ()=>{
+    if(!imgLoaded) return;
+    fitCanvasToImage();
+  });
+
+  function runAutoDetect(){
+    if(!imgLoaded) return;
+    if (typeof cv === 'undefined') {
+      console.warn('OpenCV.js not loaded yet; cannot auto‑detect');
+      return;
+    }
+    if (autoDetected) return;
+    autoDetected = true;
+
+    try {
+      const src = cv.imread(canvas);
+      let gray = new cv.Mat();
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+      cv.medianBlur(gray, gray, 5);
+
+      const circles = new cv.Mat();
+      // tune parameters here:
+      const dp = 1;
+      const minDist = gray.rows/8;
+      const param1 = 100;  // Canny high threshold
+      const param2 = 25;   // accumulator threshold for circle centers
+      const minRadius = 10;
+      const maxRadius = 0; // 0 = no maximum
+
+      cv.HoughCircles(gray, circles, cv.HOUGH_GRADIENT, dp, minDist, param1, param2, minRadius, maxRadius);
+
+      if (circles.cols > 0) {
+        for (let i = 0; i < circles.cols; ++i) {
+          const x = circles.data32F[i*3];
+          const y = circles.data32F[i*3 + 1];
+          // const r = circles.data32F[i*3 + 2];
+          addMarker(Math.round(x), Math.round(y));
+        }
+      }
+      // cleanup
+      src.delete(); gray.delete(); circles.delete();
+      draw();
+    } catch(err) {
+      console.error('Auto‑detect error:', err);
+    }
+  }
+
+  window._pillCounter = {
+    get markers(){ return markers; },
+    set markers(v){ markers = v; draw(); },
+    addMarker(m){ markers.push(m); draw(); }
+  };
+})();
+</script>
+</body>
+</html>
