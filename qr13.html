@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Visual QR Builder — SortableJS (12-per-page)</title>
+
+<!-- QR library -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<!-- SortableJS (touch & desktop friendly) -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<style>
+  :root{ --bg:#f6f8fb; --card:#fff; --accent:#1f7aed; --muted:#777; }
+  body{ font-family: system-ui, Arial, Helvetica, sans-serif; margin:18px; background:var(--bg); color:#111; }
+  h1{ font-size:18px; margin:0 0 12px 0; }
+  input, select, button, label { padding:8px; margin-right:8px; margin-bottom:10px; }
+  button{ background:var(--accent); color:#fff; border:0; border-radius:6px; cursor:pointer; }
+  button.ghost{ background:transparent; border:1px solid #ccc; color:#111; }
+  button.small{ padding:6px 8px; font-size:13px; }
+  .muted{ background:#888; color:#fff; }
+  #topRow{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  #palette, #sequence, #customCombo{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .dropzone{ min-height:56px; padding:10px; border-radius:10px; background:var(--card); border:2px dashed #c8ccd8; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .block{ padding:8px 10px; background:#3aa354; color:#fff; border-radius:6px; display:inline-flex; gap:8px; align-items:center; user-select:none; }
+  .block.text{ background:#1976d2; }
+  .block .remove{ background:rgba(0,0,0,0.2); padding:0 6px; border-radius:4px; cursor:pointer; font-weight:700; }
+  .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+  #previewCanvas{ border:1px solid #ddd; display:block; background:#fff; border-radius:6px; }
+  #printSheet{ margin-top:12px; padding:12px; background:#fff; border:2px solid #000; border-radius:6px; display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; align-items:start; }
+  .sheetItem{ background:#fff; border:1px solid #ddd; padding:8px; border-radius:8px; display:flex; flex-direction:column; align-items:center; position:relative; user-select:none; }
+  .sheetItem img{ display:block; max-width:100%; height:auto; }
+  .sheetLabel{ margin-top:6px; font-size:13px; text-align:center; }
+  .sheetRemove{ position:absolute; top:6px; right:6px; background:#ff3b30; color:#fff; padding:2px 7px; border-radius:6px; font-weight:700; cursor:pointer; font-size:12px; }
+  .note{ color:var(--muted); font-size:13px; margin-left:6px; }
+  @media print{
+    body *{ visibility:hidden !important; }
+    #printSheet, #printSheet *{ visibility:visible !important; }
+    #printSheet{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Visual QR Builder — 12 per page (SortableJS)</h1>
+
+<div id="topRow">
+  <input id="usernameInput" placeholder="Username">
+  <input id="passwordInput" placeholder="Password">
+  <input id="labelInput" placeholder="QR Label">
+  <label>QR Size: <span id="sizeValue">200</span>px</label>
+  <input id="qrSize" type="range" min="80" max="400" value="200">
+  <button id="addToSheetBtn">Add to Sheet</button>
+  <button id="printBtn">Print Sheet</button>
+  <button id="clearBtn" class="small muted">Clear All</button>
+</div>
+
+<h3>Palette — tap to add</h3>
+<div id="palette"></div>
+
+<h3>Custom Combo</h3>
+<div id="customCombo">
+  <label><input type="checkbox" id="ctrlChk"> Ctrl</label>
+  <label><input type="checkbox" id="shiftChk"> Shift</label>
+  <label><input type="checkbox" id="altChk"> Alt</label>
+  <select id="keySelect">
+    <option value="tab">Tab</option>
+    <option value="enter">Enter</option>
+    <option value="space">Space</option>
+    <option value="del">Del</option>
+    <option value="arrow_up">↑</option>
+    <option value="arrow_down">↓</option>
+    <option value="arrow_left">←</option>
+    <option value="arrow_right">→</option>
+    <option disabled>──── Function Keys ────</option>
+    <option value="f1">F1</option><option value="f2">F2</option><option value="f3">F3</option><option value="f4">F4</option>
+    <option value="f5">F5</option><option value="f6">F6</option><option value="f7">F7</option><option value="f8">F8</option>
+    <option value="f9">F9</option><option value="f10">F10</option><option value="f11">F11</option><option value="f12">F12</option>
+  </select>
+  <button id="addCustomCombo">Add Combo</button>
+  <div class="note">Double-tap a text block to edit. Tap empty sequence area to type text.</div>
+</div>
+
+<h3>Sequence (drag to reorder — touch friendly)</h3>
+<div id="sequence" class="dropzone"></div>
+
+<div class="controls">
+  <canvas id="previewCanvas" width="160" height="160"></canvas>
+  <div style="display:flex;flex-direction:column;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button id="exportBtn" class="ghost">Export JSON</button>
+      <button id="importBtn" class="ghost">Import JSON</button>
+      <input type="file" id="importFile" accept=".json" style="display:none;">
+      <button id="exportSheetBtn" class="ghost">Export Sheet Only</button>
+      <button id="importSheetBtn" class="ghost">Import Sheet Only</button>
+      <input type="file" id="importSheetFile" accept=".json" style="display:none;">
+    </div>
+    <div class="note">Export contains sequence + sheet + inputs. Sheet-only export contains stored QR payloads & labels.</div>
+  </div>
+</div>
+
+<h3>Print Sheet — drag to reorder (3 columns x 4 rows per page)</h3>
+<div id="printSheet" aria-label="print sheet"></div>
+
+<script>
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+function downloadFile(filename, contents){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([contents], {type:'application/json'}));
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/* ---------- DOM refs ---------- */
+const palette = $('#palette');
+const sequence = $('#sequence');
+const printSheet = $('#printSheet');
+const usernameInput = $('#usernameInput');
+const passwordInput = $('#passwordInput');
+const labelInput = $('#labelInput');
+const previewCanvas = $('#previewCanvas');
+const qrSize = $('#qrSize');
+const sizeValue = $('#sizeValue');
+
+const addToSheetBtn = $('#addToSheetBtn');
+const printBtn = $('#printBtn');
+const clearBtn = $('#clearBtn');
+
+const addCustomCombo = $('#addCustomCombo');
+const ctrlChk = $('#ctrlChk');
+const shiftChk = $('#shiftChk');
+const altChk = $('#altChk');
+const keySelect = $('#keySelect');
+
+const exportBtn = $('#exportBtn');
+const importBtn = $('#importBtn');
+const importFile = $('#importFile');
+const exportSheetBtn = $('#exportSheetBtn');
+const importSheetBtn = $('#importSheetBtn');
+const importSheetFile = $('#importSheetFile');
+
+/* ---------- Palette buttons ---------- */
+const paletteButtons = [
+  {type:'username',label:'Username'},
+  {type:'password',label:'Password'},
+  {type:'space',label:'Space (␣ \\x20)'},
+  {type:'tab',label:'Tab (\\t)'},
+  {type:'enter_lf',label:'Enter (\\n)'},
+  {type:'enter_crlf',label:'Enter (\\r\\n)'},
+  {type:'enter_cr',label:'Enter (\\r)'},
+  {type:'esc',label:'ESC'},
+  {type:'backspace',label:'Backspace (\\b)'},
+  {type:'arrow_up',label:'↑'},
+  {type:'arrow_down',label:'↓'},
+  {type:'arrow_left',label:'←'},
+  {type:'arrow_right',label:'→'}
+];
+for(let i=1;i<=12;i++) paletteButtons.push({type:'f'+i,label:'F'+i});
+paletteButtons.forEach(b=>{
+  const btn = document.createElement('button');
+  btn.textContent = b.label;
+  btn.dataset.type = b.type;
+  btn.addEventListener('click', ()=> {
+    const block = createBlock(b.type, b.label);
+    sequence.appendChild(block);
+    sortableSequence.sort(sequence.children.length-1); // keep last placed movable
+    updatePreview();
+  });
+  palette.appendChild(btn);
+});
+
+/* ---------- Create block ---------- */
+function createBlock(type,label=null,keys=null,textContent=null){
+  const div = document.createElement('div');
+  div.className = 'block';
+  div.dataset.type = type;
+  if(keys) div.dataset.keys = JSON.stringify(keys);
+  if(textContent!=null) div.dataset.text = textContent;
+  div.tabIndex = 0;
+  // label shown: prefer explicit label for combos, otherwise data.text for text blocks
+  div.innerText = label || textContent || type;
+  if(type==='text') div.classList.add('text');
+
+  const rm = document.createElement('span');
+  rm.className = 'remove';
+  rm.innerText = '✕';
+  rm.addEventListener('click', (e)=> { e.stopPropagation(); div.remove(); updatePreview(); });
+  div.appendChild(rm);
+
+  // double-click / double-tap to edit text
+  if(type==='text'){
+    div.addEventListener('dblclick', ()=> {
+      const old = div.dataset.text || '';
+      const input = document.createElement('input');
+      input.type='text';
+      input.value = old;
+      input.style.minWidth = '120px';
+      div.innerHTML = '';
+      div.appendChild(input);
+      input.focus();
+      input.addEventListener('blur', ()=> {
+        div.dataset.text = input.value;
+        div.innerText = input.value;
+        div.appendChild(rm);
+        updatePreview();
+      });
+      input.addEventListener('keydown', e=> { if(e.key==='Enter') input.blur(); });
+    });
+  }
+
+  return div;
+}
+
+/* ---------- Free typing into sequence ---------- */
+let typingActive = false;
+sequence.addEventListener('click', e=>{
+  if(e.target !== sequence) return;
+  if(typingActive) return;
+  typingActive = true;
+  const input = document.createElement('input');
+  input.placeholder = 'Type text...';
+  input.style.minWidth = '140px';
+  sequence.appendChild(input);
+  input.focus();
+  input.addEventListener('keydown', ev=>{
+    if(ev.key === 'Enter' || ev.key === 'Tab'){ ev.preventDefault(); finish(); }
+  });
+  input.addEventListener('blur', finish);
+  function finish(){
+    const v = input.value.trim();
+    if(v !== '') {
+      const block = createBlock('text', null, null, v);
+      sequence.insertBefore(block, input);
+      sortableSequence.add(block); // ensure Sortable recognizes new node
+    }
+    input.remove();
+    typingActive = false;
+    updatePreview();
+  }
+});
+
+/* ---------- Custom combo ---------- */
+addCustomCombo.addEventListener('click', ()=>{
+  const keys = [];
+  if(ctrlChk.checked) keys.push('ctrl');
+  if(shiftChk.checked) keys.push('shift');
+  if(altChk.checked) keys.push('alt');
+  keys.push(keySelect.value);
+  const label = keys.map(k=>k.toUpperCase()).join(' + ');
+  const block = createBlock('combo', label, keys);
+  sequence.appendChild(block);
+  updatePreview();
+});
+
+/* ---------- Build payload ---------- */
+function buildPayload(){
+  let payload = '';
+  const blocks = sequence.querySelectorAll('.block');
+  blocks.forEach(b=>{
+    const t = b.dataset.type;
+    if(!t) return;
+    if(t==='username') payload += usernameInput.value || '';
+    else if(t==='password') payload += passwordInput.value || '';
+    else if(t==='text') payload += (b.dataset.text || '');
+    else if(t==='space') payload += '\x20';
+    else if(t==='tab') payload += '\x09';
+    else if(t==='enter_lf') payload += '\x0A';
+    else if(t==='enter_crlf') payload += '\x0D\x0A';
+    else if(t==='enter_cr') payload += '\x0D';
+    else if(t==='esc') payload += '\x1B';
+    else if(t==='backspace') payload += '\x08';
+    else if(t==='arrow_up') payload += '\x1B[A';
+    else if(t==='arrow_down') payload += '\x1B[B';
+    else if(t==='arrow_left') payload += '\x1B[D';
+    else if(t==='arrow_right') payload += '\x1B[C';
+    else if(/^f\d+$/i.test(t)){
+      const n = parseInt(t.slice(1));
+      payload += (n <= 4) ? ('\x1B' + String.fromCharCode(79 + (n-1))) : ('\x1B[' + (10 + n) + '~');
+    } else if(t==='combo'){
+      try{
+        const arr = JSON.parse(b.dataset.keys || '[]');
+        arr.forEach(k=>{
+          if(k==='ctrl') payload += '\xE0';
+          else if(k==='shift') payload += '\xE1';
+          else if(k==='alt') payload += '\xE2';
+          else if(k==='space') payload += '\x20';
+          else if(k==='tab') payload += '\x09';
+          else if(k==='enter') payload += '\x0D';
+          else if(/^f\d+$/i.test(k)){
+            const n = parseInt(k.slice(1));
+            payload += (n <= 4) ? ('\x1B' + String.fromCharCode(79 + (n-1))) : ('\x1B[' + (10 + n) + '~');
+          }
+        });
+      } catch(e){}
+    }
+  });
+  return payload;
+}
+
+/* ---------- Preview ---------- */
+function updatePreview(){
+  const payload = buildPayload();
+  const ctx = previewCanvas.getContext('2d');
+  const size = Math.max(80, Math.min(320, parseInt(qrSize.value,10)));
+  previewCanvas.width = previewCanvas.height = Math.round(size * 0.8);
+  sizeValue.textContent = qrSize.value;
+  ctx.clearRect(0,0,previewCanvas.width, previewCanvas.height);
+  if(!payload) return;
+  QRCode.toCanvas(previewCanvas, payload, { width: previewCanvas.width, errorCorrectionLevel: 'M' }, ()=>{});
+}
+
+[usernameInput, passwordInput, labelInput, qrSize].forEach(i=> i.addEventListener('input', updatePreview));
+
+/* ---------- Add to sheet ---------- */
+function addToSheet(){
+  const payload = buildPayload();
+  if(!payload) { alert('Sequence empty — add blocks or text first.'); return; }
+  const label = labelInput.value || '';
+  const size = Math.max(80, Math.min(400, parseInt(qrSize.value,10)));
+  const tmp = document.createElement('canvas');
+  tmp.width = tmp.height = size;
+  QRCode.toCanvas(tmp, payload, { width:size, errorCorrectionLevel:'M' }, ()=>{
+    const dataURL = tmp.toDataURL();
+    const item = document.createElement('div');
+    item.className = 'sheetItem';
+    item.dataset.payload = payload;
+    item.dataset.label = label;
+    item.dataset.size = size;
+
+    const rm = document.createElement('div');
+    rm.className = 'sheetRemove';
+    rm.textContent = '✕';
+    rm.addEventListener('click', ()=> { item.remove(); });
+
+    const img = document.createElement('img');
+    img.src = dataURL;
+    img.width = Math.min(300, size);
+
+    const cap = document.createElement('div');
+    cap.className = 'sheetLabel';
+    cap.textContent = label;
+
+    item.appendChild(rm);
+    item.appendChild(img);
+    item.appendChild(cap);
+    printSheet.appendChild(item);
+    sortableSheet.option('disabled', false); // ensure sortable active
+  });
+}
+addToSheetBtn.addEventListener('click', addToSheet);
+
+/* ---------- Print / Clear ---------- */
+printBtn.addEventListener('click', ()=> window.print());
+clearBtn.addEventListener('click', ()=>{
+  if(!confirm('Clear sequence and sheet?')) return;
+  sequence.innerHTML = '';
+  printSheet.innerHTML = '';
+  usernameInput.value = passwordInput.value = labelInput.value = '';
+  updatePreview();
+});
+
+/* ---------- Export / Import ---------- */
+function exportAll(){
+  const seq = [];
+  sequence.querySelectorAll('.block').forEach(b=>{
+    seq.push({ type: b.dataset.type || null, text: b.dataset.text || null, keys: b.dataset.keys ? JSON.parse(b.dataset.keys) : null, label: b.innerText ? b.innerText.replace(/✕$/,'').trim() : null });
+  });
+  const sheetArr = [];
+  printSheet.querySelectorAll('.sheetItem').forEach(it=>{
+    sheetArr.push({ payload: it.dataset.payload || null, label: it.dataset.label || '', size: parseInt(it.dataset.size||'200',10) });
+  });
+  const doc = { meta:{generatedAt:(new Date()).toISOString(), grid:{cols:3,rows:4}}, inputs:{ username: usernameInput.value, password: passwordInput.value, label: labelInput.value, qrSize: parseInt(qrSize.value,10) }, sequence: seq, sheet: sheetArr };
+  downloadFile('visual-qr-builder.json', JSON.stringify(doc, null, 2));
+}
+exportBtn.addEventListener('click', exportAll);
+
+importBtn.addEventListener('click', ()=> importFile.click());
+importFile.addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try{
+      const data = JSON.parse(e.target.result);
+      importAll(data);
+    } catch(err){ alert('Invalid JSON'); }
+  };
+  r.readAsText(f);
+  importFile.value = '';
+});
+
+function importAll(data){
+  sequence.innerHTML = '';
+  printSheet.innerHTML = '';
+  if(data.inputs){
+    usernameInput.value = data.inputs.username || '';
+    passwordInput.value = data.inputs.password || '';
+    labelInput.value = data.inputs.label || '';
+    if(data.inputs.qrSize) qrSize.value = data.inputs.qrSize;
+  }
+  if(Array.isArray(data.sequence)){
+    data.sequence.forEach(s=>{
+      const block = createBlock(s.type || 'text', s.label || s.text || s.type, s.keys || null, s.text || null);
+      if(s.text) block.dataset.text = s.text;
+      sequence.appendChild(block);
+    });
+  }
+  if(Array.isArray(data.sheet)){
+    data.sheet.forEach(s=>{
+      const size = s.size || parseInt(qrSize.value,10) || 200;
+      const item = document.createElement('div');
+      item.className = 'sheetItem';
+      item.dataset.payload = s.payload || '';
+      item.dataset.label = s.label || '';
+      item.dataset.size = size;
+
+      const rm = document.createElement('div');
+      rm.className = 'sheetRemove';
+      rm.textContent = '✕';
+      rm.addEventListener('click', ()=> item.remove());
+
+      const img = document.createElement('img');
+      if(s.payload){
+        const tmp = document.createElement('canvas');
+        tmp.width = tmp.height = size;
+        QRCode.toCanvas(tmp, s.payload, { width:size }, ()=> img.src = tmp.toDataURL());
+      }
+      img.width = Math.min(300,size);
+
+      const cap = document.createElement('div');
+      cap.className = 'sheetLabel';
+      cap.textContent = s.label || '';
+
+      item.appendChild(rm);
+      item.appendChild(img);
+      item.appendChild(cap);
+      printSheet.appendChild(item);
+    });
+  }
+  updatePreview();
+}
+
+exportSheetBtn.addEventListener('click', ()=>{
+  const sheetArr = [];
+  printSheet.querySelectorAll('.sheetItem').forEach(it=>{
+    sheetArr.push({ payload: it.dataset.payload || null, label: it.dataset.label || '', size: parseInt(it.dataset.size||'200',10) });
+  });
+  downloadFile('visual-qr-sheet.json', JSON.stringify({ meta:{generatedAt:(new Date()).toISOString()}, sheet: sheetArr }, null, 2));
+});
+
+importSheetBtn.addEventListener('click', ()=> importSheetFile.click());
+importSheetFile.addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!data.sheet) throw new Error('No sheet key');
+      importSheetOnly(data.sheet);
+    } catch(err){ alert('Invalid sheet JSON'); }
+  };
+  r.readAsText(f);
+  importSheetFile.value = '';
+});
+
+function importSheetOnly(sheet){
+  printSheet.innerHTML = '';
+  sheet.forEach(s=>{
+    const size = s.size || parseInt(qrSize.value,10) || 200;
+    const item = document.createElement('div');
+    item.className = 'sheetItem';
+    item.dataset.payload = s.payload || '';
+    item.dataset.label = s.label || '';
+    item.dataset.size = size;
+
+    const rm = document.createElement('div');
+    rm.className = 'sheetRemove';
+    rm.textContent = '✕';
+    rm.addEventListener('click', ()=> item.remove());
+
+    const img = document.createElement('img');
+    if(s.payload){
+      const tmp = document.createElement('canvas');
+      tmp.width = tmp.height = size;
+      QRCode.toCanvas(tmp, s.payload, { width:size }, ()=> img.src = tmp.toDataURL());
+    }
+    img.width = Math.min(300,size);
+
+    const cap = document.createElement('div');
+    cap.className = 'sheetLabel';
+    cap.textContent = s.label || '';
+
+    item.appendChild(rm);
+    item.appendChild(img);
+    item.appendChild(cap);
+    printSheet.appendChild(item);
+  });
+}
+
+/* ---------- SortableJS instances ---------- */
+/* Sequence sortable (horizontal wrap) */
+const sortableSequence = new Sortable(sequence, {
+  animation: 150,
+  ghostClass: 'sortable-ghost',
+  chosenClass: 'sortable-chosen',
+  dragClass: 'sortable-drag',
+  fallbackOnBody: true,
+  swapThreshold: 0.65,
+  onEnd: ()=> updatePreview()
+});
+
+/* Print sheet sortable (grid) */
+const sortableSheet = new Sortable(printSheet, {
+  animation: 150,
+  ghostClass: 'sortable-ghost',
+  chosenClass: 'sortable-chosen',
+  dragClass: 'sortable-drag',
+  fallbackOnBody: true,
+  swapThreshold: 0.65,
+  onEnd: ()=> {} // no preview needed, sheet reordering is visual
+});
+
+/* ---------- Init example content ---------- */
+(function boot(){
+  // add initial sequence blocks
+  sequence.appendChild(createBlock('username','Username'));
+  sequence.appendChild(createBlock('space','Space'));
+  sequence.appendChild(createBlock('password','Password'));
+  updatePreview();
+})();
+
+/* Accessibility note: keyboard reordering not included here */
+
+/* ---------- End ---------- */
+</script>
+</body>
+</html>
