@@ -185,7 +185,7 @@ function copyPreviousWeekEmployees(currentWeek){
     let row=document.createElement("tr"); row.className="empRow";
     row.innerHTML=`
       <td><input class="empName" value="${name}"></td>
-      ${"<td><input class='timeInput' placeholder='915a-8p'></td>".repeat(7)}
+      ${"<td><input class='timeInput' placeholder=''></td>".repeat(7)}
       <td class="empTotal">0.00</td>
       <td><button class="removeBtn" onclick="removeEmployee(this)">Remove</button></td>
     `;
