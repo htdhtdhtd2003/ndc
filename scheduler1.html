@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weekly Scheduler + Print Friendly</title>
+
+<style>
+  body { font-family: Arial, sans-serif; padding: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: auto; }
+  th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+  th { background: #f4f4f4; }
+  input { width: 98%; padding: 4px; font-size: 14px; box-sizing: border-box; }
+  button { padding: 6px 10px; margin: 4px 2px; }
+  .total-row { background: #eef7ff; font-weight: bold; }
+  .week-block { border: 2px solid #0077ff; padding: 10px; margin-bottom: 20px; border-radius: 8px; }
+  .week-title { font-size: 19px; font-weight: bold; margin-bottom: 6px; }
+  #topButtons button { margin-right: 6px; }
+  .removeBtn { background-color: #ff4d4d; color: white; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px; }
+  .removeBtn:hover { background-color: #ff1a1a; }
+
+  .timeError { color: red; font-size: 13px; padding-top: 6px; margin: 0; }
+  .invalidTime { border: 2px solid red !important; background-color: #ffecec; }
+
+  /* Print-friendly layout */
+  @media print {
+    @page {
+      size: letter landscape;
+      margin: 0.3in;
+    }
+    body { padding: 0; margin: 0; font-size: 12px; }
+    button, #topButtons { display: none !important; }
+    input { border: none; width: 100%; font-size: 12px; padding: 0; background: transparent; }
+    table { width: 100%; table-layout: fixed; font-size: 12px; border-collapse: collapse; }
+    th, td { padding: 2px; word-wrap: break-word; border: 1px solid #000; }
+    .week-block { page-break-after: always; border: none; padding: 0; margin: 0; }
+    .week-title { font-size: 14px; }
+    /* Hide Remove column in print */
+    th:last-child, td:last-child { display: none; }
+    .timeError { display: none; }
+  }
+</style>
+</head>
+
+<body>
+
+<h2>Weekly Scheduler</h2>
+
+<div id="topButtons">
+  <button onclick="createNewWeek()">➕ Add New Week</button>
+  <button onclick="exportData()">⬇ Export</button>
+  <button onclick="triggerImport()">⬆ Import</button>
+  <button onclick="saveLocal()">💾 Save</button>
+  <button onclick="loadLocal()">📂 Load</button>
+  <button onclick="window.print()">🖨 Print</button>
+</div>
+
+<input type="file" id="importFile" style="display:none" accept=".json" onchange="handleImport(event)">
+
+<div id="weeksContainer"></div>
+
+<script>
+let weekCount = 0;
+
+/* ---------- Utilities ---------- */
+function pad2(n){ return n.toString().padStart(2,"0"); }
+function fmt(date){ return pad2(date.getUTCMonth()+1) + "/" + pad2(date.getUTCDate()); }
+
+/* ---------- CREATE NEW WEEK ---------- */
+function createNewWeek(copyEmployees = false) {
+  weekCount++;
+  const container = document.getElementById("weeksContainer");
+
+  // Attempt to auto-calc start date (7 days after previous start) using UTC-safe dates
+  let autoDate = "";
+  if (weekCount > 1) {
+    const prevInput = document.querySelector(`#week_${weekCount-1} .weekStartInput`);
+    if (prevInput && prevInput.value) {
+      const [y,m,d] = prevInput.value.split("-").map(Number);
+      // Use UTC to avoid timezone shifts on mobile
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + 7);
+      autoDate = dt.toISOString().slice(0,10);
+    }
+  }
+
+  const block = document.createElement("div");
+  block.className = "week-block";
+  block.id = "week_" + weekCount;
+
+  block.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="week-title">Week ${weekCount}</div>
+      <div>
+        <button onclick="addEmployee(${weekCount})">+ Add Employee</button>
+        <button onclick="copyPreviousWeekEmployees(${weekCount})">⤵ Copy Previous Week Employees</button>
+      </div>
+    </div>
+
+    <label><b>Week Beginning (Sunday):</b></label><br>
+    <input type="date" class="weekStartInput" value="${autoDate}">
+    <p class="dateError" style="color:red;font-size:14px;margin:6px 0 0 0;"></p>
+    <p class="timeError"></p>
+
+    <table>
+      <thead>
+        <tr class="headerRow">
+          <th>Employee</th>
+          <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+          <th>Total Hours</th>
+          <th>Remove</th>
+        </tr>
+      </thead>
+      <tbody class="tbody"></tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="9">Total Hours (All Employees)</td>
+          <td class="grandTotal">0.00</td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
+
+  container.appendChild(block);
+
+  const input = block.querySelector(".weekStartInput");
+  input.addEventListener("change", () => validateAndUpdateHeaders(block.id));
+
+  // If autoDate was set, validate the headers immediately
+  if (autoDate) validateAndUpdateHeaders(block.id);
+
+  // If requested, copy employees from previous week
+  if (copyEmployees) copyPreviousWeekEmployees(weekCount);
+}
+
+/* ---------- DATE VALIDATION & HEADER UPDATES (UTC-safe) ---------- */
+function validateAndUpdateHeaders(weekId){
+  const block = document.getElementById(weekId);
+  const input = block.querySelector(".weekStartInput");
+  const error = block.querySelector(".dateError");
+  if (!input.value) { // blank date -> clear headers back to names
+    error.textContent = "";
+    const header = block.querySelector(".headerRow").children;
+    for (let i = 1; i <= 7; i++) header[i].textContent = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i-1];
+    return;
+  }
+
+  const [y,m,d] = input.value.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d)); // UTC to avoid timezone shift
+
+  if (date.getUTCDay() !== 0) {
+    error.textContent = "❌ Date must be a Sunday.";
+    input.value = "";
+    // reset headers
+    const header = block.querySelector(".headerRow").children;
+    for (let i = 1; i <= 7; i++) header[i].textContent = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i-1];
+    return;
+  }
+  error.textContent = "";
+
+  const header = block.querySelector(".headerRow").children;
+  for (let i = 1; i <= 7; i++){
+    const dt = new Date(date);
+    dt.setUTCDate(date.getUTCDate() + (i - 1));
+    header[i].textContent = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i-1] + " (" + fmt(dt) + ")";
+  }
+}
+
+/* ---------- TIME PARSING & CALC ---------- */
+/*
+ Option A - strict formats only:
+  - Examples allowed: 9a, 930a, 9:30a, 12p, 1230p, 12:00p
+  - Range example: 9a-5p or 9:30a-5:15p or 930a-1230p
+  - Not allowed: "9-5", "9am", "9 am", "9am-5pm", "0900-1700"
+*/
+
+function parseTime(str){
+  if (!str) return null;
+  const clean = String(str).toLowerCase().replace(/\s+/g,"");
+  // Accept 9a 9:30a 930a 12p 12:00p
+  const m = clean.match(/^(\d{1,2})(:?(\d{2}))?(a|p)$/);
+  if (!m) return "INVALID";
+  let h = parseInt(m[1], 10);
+  const mins = m[3] ? parseInt(m[3], 10) : 0;
+  const ap = m[4];
+  // Basic bounds
+  if (h < 1 || h > 12 || mins < 0 || mins > 59) return "INVALID";
+  if (ap === "p" && h !== 12) h += 12;
+  if (ap === "a" && h === 12) h = 0;
+  return h * 60 + mins;
+}
+
+function calcHours(range){
+  if (!range || !range.includes("-")) return 0;
+  const parts = range.split("-");
+  if (parts.length !== 2) return "INVALID";
+  const [s, e] = parts.map(p => p.trim());
+  const start = parseTime(s);
+  const end = parseTime(e);
+  if (start === "INVALID" || end === "INVALID") return "INVALID";
+  // difference in minutes (allow overnight by adding 1440 if negative)
+  let diff = end - start;
+  if (diff < 0) diff += 1440;
+  return diff / 60;
+}
+
+/* ---------- RECALC TOTALS (includes validation) ---------- */
+function recalcTotals(block){
+  let grand = 0;
+  let anyInvalid = false;
+  const timeError = block.querySelector(".timeError");
+  timeError.textContent = "";
+
+  block.querySelectorAll(".empRow").forEach(row => {
+    let total = 0;
+    row.querySelectorAll(".timeInput").forEach(inp => {
+      const val = inp.value.trim();
+      const res = calcHours(val);
+      if (res === "INVALID") {
+        inp.classList.add("invalidTime");
+        anyInvalid = true;
+      } else {
+        inp.classList.remove("invalidTime");
+        // res may be a number or 0
+        total += Number(res);
+      }
+    });
+    row.querySelector(".empTotal").textContent = total.toFixed(2);
+    grand += total;
+  });
+
+  block.querySelector(".grandTotal").textContent = grand.toFixed(2);
+
+  if (anyInvalid) {
+    timeError.textContent = "❌ One or more time entries are invalid. Valid examples: 9a-5p, 930a-1230p, 9:30a-5:00p";
+  } else {
+    timeError.textContent = "";
+  }
+}
+
+/* ---------- ADD / REMOVE EMPLOYEE ---------- */
+function addEmployee(weekNum, nameValue = "") {
+  const block = document.getElementById("week_" + weekNum);
+  const tbody = block.querySelector(".tbody");
+  const row = document.createElement("tr");
+  row.className = "empRow";
+  row.innerHTML = `
+    <td><input class="empName" placeholder="Employee name" value="${escapeHtmlAttr(nameValue)}"></td>
+    ${"<td><input class='timeInput' placeholder=''></td>".repeat(7)}
+    <td class="empTotal">0.00</td>
+    <td><button class="removeBtn" onclick="removeEmployee(this)">Remove</button></td>
+  `;
+  tbody.appendChild(row);
+
+  // attach listeners to inputs
+  row.querySelectorAll("input").forEach(inp => {
+    inp.addEventListener("input", () => recalcTotals(block));
+    // For better UX, also validate on blur
+    inp.addEventListener("blur", () => recalcTotals(block));
+  });
+
+  recalcTotals(block);
+}
+
+function removeEmployee(btn){
+  const row = btn.closest("tr");
+  const block = row.closest(".week-block");
+  row.remove();
+  recalcTotals(block);
+}
+
+/* ---------- COPY PREVIOUS WEEK EMPLOYEES ---------- */
+function copyPreviousWeekEmployees(currentWeek){
+  if (currentWeek <= 1) return;
+  const prev = document.getElementById("week_" + (currentWeek - 1));
+  const curr = document.getElementById("week_" + currentWeek);
+  if (!prev || !curr) return;
+  const names = [...prev.querySelectorAll(".empName")].map(i => i.value || "");
+  names.forEach(n => addEmployee(currentWeek, n));
+}
+
+/* ---------- EXPORT / IMPORT / LOCAL STORAGE ---------- */
+function exportData(){
+  const data = { weeks: [] };
+  for (let i = 1; i <= weekCount; i++){
+    const block = document.getElementById("week_" + i);
+    if (!block) continue;
+    const start = block.querySelector(".weekStartInput").value || "";
+    const employees = [];
+    block.querySelectorAll(".empRow").forEach(row => {
+      const name = row.querySelector(".empName").value || "";
+      const times = [...row.querySelectorAll(".timeInput")].map(inp => inp.value || "");
+      employees.push({ name, times });
+    });
+    data.weeks.push({ start, employees });
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "schedule.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function triggerImport(){ document.getElementById("importFile").click(); }
+function handleImport(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    try {
+      const obj = JSON.parse(evt.target.result);
+      importObject(obj);
+    } catch (err) {
+      alert("Failed to parse JSON: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function saveLocal(){
+  const data = { weeks: [] };
+  for (let i = 1; i <= weekCount; i++){
+    const block = document.getElementById("week_" + i);
+    if (!block) continue;
+    const start = block.querySelector(".weekStartInput").value || "";
+    const employees = [];
+    block.querySelectorAll(".empRow").forEach(row => {
+      const name = row.querySelector(".empName").value || "";
+      const times = [...row.querySelectorAll(".timeInput")].map(inp => inp.value || "");
+      employees.push({ name, times });
+    });
+    data.weeks.push({ start, employees });
+  }
+  localStorage.setItem("schedulerData", JSON.stringify(data));
+  alert("Saved locally!");
+}
+
+function loadLocal(){
+  const raw = localStorage.getItem("schedulerData");
+  if (!raw) return alert("No saved data found.");
+  try {
+    importObject(JSON.parse(raw));
+  } catch (err) {
+    alert("Failed to load saved data: " + err.message);
+  }
+}
+
+function importObject(obj){
+  // Clear current
+  document.getElementById("weeksContainer").innerHTML = "";
+  weekCount = 0;
+
+  if (!obj || !Array.isArray(obj.weeks)) return;
+
+  obj.weeks.forEach(week => {
+    createNewWeek(false);
+    const block = document.getElementById("week_" + weekCount);
+    if (week.start) {
+      block.querySelector(".weekStartInput").value = week.start;
+      validateAndUpdateHeaders(block.id);
+    }
+    // add employees
+    if (Array.isArray(week.employees)) {
+      week.employees.forEach(emp => {
+        const nameVal = emp.name || "";
+        addEmployee(weekCount, nameVal);
+        // fill times into the last row added
+        const lastRow = block.querySelector(".tbody").lastElementChild;
+        if (lastRow && Array.isArray(emp.times)) {
+          const timeInputs = lastRow.querySelectorAll(".timeInput");
+          for (let i = 0; i < Math.min(7, emp.times.length); i++){
+            timeInputs[i].value = emp.times[i] || "";
+          }
+        }
+      });
+    }
+    recalcTotals(block);
+  });
+}
+
+/* ---------- HELPERS ---------- */
+function escapeHtmlAttr(str){
+  if (!str) return "";
+  return String(str).replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g,'&gt;');
+}
+
+/* ---------- INITIALIZE WITH ONE WEEK ---------- */
+createNewWeek();
+
+/* ---------- Optional: expose some functions for console debugging ---------- */
+window._scheduler = {
+  createNewWeek, addEmployee, recalcTotals, exportData, importObject, saveLocal, loadLocal
+};
+</script>
+
+</body>
+</html>
