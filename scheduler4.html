@@ -185,16 +185,21 @@ function parseTime(str){
 }
 
 function calcHours(range){
-  if (!range || !range.includes("-")) return 0;
-  const [s,e] = range.split("-").map(v=>v.trim());
+  if(!range || !range.includes("-")) return 0;
+  const [s,e] = range.split("-").map(v=>v.trim().toUpperCase());
+
+  // Check PTO first
+  if(s === "PTO" || e === "PTO") return "PTO";
+
   const start = parseTime(s);
   const end = parseTime(e);
-  if (start === "INVALID" || end === "INVALID") return "INVALID";
-  if(start === "PTO" || end === "PTO") return "PTO";
+  if(start === "INVALID" || end === "INVALID") return "INVALID";
+
   let diff = end - start;
-  if (diff < 0) diff += 1440;
+  if(diff < 0) diff += 1440; // wrap around midnight
   return diff / 60;
 }
+
 
 /* ---------- RECALC ---------- */
 function recalcTotals(block){
@@ -203,20 +208,24 @@ function recalcTotals(block){
   const timeError = block.querySelector(".timeError");
   timeError.textContent = "";
 
-  block.querySelectorAll(".empRow").forEach(row=>{
-    let total = 0;
-    let rowGrand = 0;
-    row.querySelectorAll(".timeInput").forEach(inp=>{
-      const val = inp.value.trim();
-      const res = calcHours(val);
-      inp.classList.remove("invalidTime","ptoTime");
+ row.querySelectorAll(".timeInput").forEach(inp=>{
+  const val = inp.value.trim();
+  const res = calcHours(val);
+  inp.classList.remove("invalidTime","ptoTime");
 
-      if(res === "INVALID") { inp.classList.add("invalidTime"); anyInvalid=true; }
-      else if(res === "PTO") { inp.classList.add("ptoTime"); total += 8; } 
-      else total += Number(res);
+  if(res === "INVALID") {
+    inp.classList.add("invalidTime");
+    anyInvalid = true;
+  } else if(res === "PTO") {
+    inp.classList.add("ptoTime");
+    total += 8;  // employee total includes PTO
+    // Do NOT add to rowGrand, so grand total unaffected
+  } else {
+    total += Number(res);
+    rowGrand += Number(res);
+  }
+});
 
-      if(res !== "PTO" && res !== "INVALID") rowGrand += Number(res);
-    });
     row.querySelector(".empTotal").textContent = total.toFixed(2);
     grand += rowGrand;
   });
