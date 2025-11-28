@@ -3,163 +3,248 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weekly Scheduler with PTO Hours</title>
+<title>Weekly Scheduler + PTO Hours + GitHub Export/Import</title>
 
 <style>
   body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-  h1 { margin-bottom: 20px; }
+  h2 { margin-top: 30px; }
+  .controls { margin-bottom: 20px; }
   .week-container { 
-    background: white;
-    padding: 15px;
+    background: white; 
+    padding: 15px; 
+    border: 1px solid #ccc; 
+    border-radius: 10px; 
     margin-bottom: 25px;
-    border: 1px solid #ccc;
-    border-radius: 10px;
   }
   table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  th, td { border: 1px solid #777; padding: 7px; text-align: center; }
-  td[contenteditable="true"] { background: #fafafa; }
-  button { padding: 8px 14px; margin: 5px; cursor: pointer; }
-  .add-week { background: #0275d8; color: white; border: none; border-radius: 6px; }
+  th, td { border: 1px solid #999; padding: 6px; text-align: center; }
+  button { padding: 8px 12px; margin: 5px; cursor: pointer; }
   .delete-week { background: #d9534f; color: white; border: none; border-radius: 6px; }
+  .add-week { background: #0275d8; color: white; border: none; border-radius: 6px; }
+  .save-btn { background: #5cb85c; color: white; border: none; border-radius: 6px; }
+  .load-btn { background: #5bc0de; color: white; border: none; border-radius: 6px; }
+  input { padding: 6px; width: 280px; }
 </style>
 
 </head>
 <body>
 
-<h1>Weekly Scheduler (Auto PTO + Time Total)</h1>
+<h1>Weekly Scheduler with PTO Auto-Add + GitHub Import/Export</h1>
 
-<button class="add-week" onclick="createWeek()">+ Add Week</button>
+<div class="controls">
+  <button class="add-week" onclick="createWeek()">+ Add New Week</button>
+  <br><br>
+
+  <label><b>GitHub Token (required only for saving):</b></label><br>
+  <input type="password" id="githubToken" placeholder="Enter GitHub Personal Access Token">
+  <br><br>
+
+  <button class="save-btn" onclick="exportToGitHub()">Save to GitHub</button>
+  <button class="load-btn" onclick="importFromGitHub()">Load from GitHub</button>
+</div>
 
 <div id="weeks"></div>
 
 <script>
-// ------------------------ TIME CALC FUNCTIONS ------------------------
 
-function parseTime(str) {
-    str = str.trim().toLowerCase();
-    if (!str) return null;
+// ---------- GitHub Config ----------
+const githubUser = "htdhtdhtd2003";
+const githubRepo = "ndc";
+const githubPath = "schedule560.json";
 
-    let match = str.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
-    if (!match) return null;
 
-    let hour = parseInt(match[1]);
-    let min = match[2] ? parseInt(match[2]) : 0;
-    let ampm = match[3];
-
-    if (ampm === "pm" && hour < 12) hour += 12;
-    if (ampm === "am" && hour === 12) hour = 0;
-
-    return hour * 60 + min;
-}
-
-function calculateRange(str) {
-    if (!str.includes("-")) return 0;
-
-    let parts = str.split("-");
-    if (parts.length !== 2) return 0;
-
-    let start = parseTime(parts[0]);
-    let end = parseTime(parts[1]);
-
-    if (start == null || end == null) return 0;
-    if (end < start) end += 24 * 60; // handle overnight
-
-    return (end - start) / 60;
-}
-
-function calculateEmployeeTotal(tr) {
-    let tds = [...tr.querySelectorAll("td")].slice(1); 
-    let total = 0;
-
-    tds.forEach(td => {
-        let v = td.innerText.trim();
-
-        if (!v) return;
-
-        // PTO adds 8 hours
-        if (v.toLowerCase() === "pto") {
-            total += 8;
-            return;
-        }
-
-        // Time range (ex: 9-5 or 8:00am-4:30pm)
-        total += calculateRange(v);
-    });
-
-    tr.querySelector(".totalCell").innerText = total.toFixed(2);
-}
-
-// Update all totals in a week
-function updateAllTotals(weekDiv) {
-    weekDiv.querySelectorAll("tbody tr").forEach(tr => {
-        calculateEmployeeTotal(tr);
-    });
-}
-
-// ------------------------ CREATE WEEK ------------------------
-
-function createWeek(loadedRows = null) {
+// ---------- Create Week ----------
+function createWeek(loadedData = null) {
     const container = document.getElementById("weeks");
 
     const weekDiv = document.createElement("div");
     weekDiv.className = "week-container";
 
     // Delete button
-    const del = document.createElement("button");
-    del.className = "delete-week";
-    del.textContent = "Delete This Week";
-    del.onclick = () => weekDiv.remove();
-    weekDiv.appendChild(del);
+    const delBtn = document.createElement("button");
+    delBtn.className = "delete-week";
+    delBtn.textContent = "Delete This Week";
+    delBtn.onclick = () => {
+        if (confirm("Are you sure you want to delete this week?")) {
+            weekDiv.remove();
+            saveLocal();
+        }
+    };
+    weekDiv.appendChild(delBtn);
 
-    // Table
+    // Week table
     const table = document.createElement("table");
     table.innerHTML = `
       <thead>
         <tr>
           <th>Employee</th>
-          <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th>
-          <th>Thu</th><th>Fri</th><th>Sat</th>
-          <th>Total</th>
+          <th>Sun</th><th>Mon</th><th>Tue</th>
+          <th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+          <th>Total Hours</th>
         </tr>
       </thead>
       <tbody></tbody>
     `;
-
     const tbody = table.querySelector("tbody");
 
-    const defaultRows = loadedRows || [
-        ["", "", "", "", "", "", "", ""],
-        ["", "", "", "", "", "", "", ""],
-        ["", "", "", "", "", "", "", ""]
+    // Default 3 rows if no data
+    const employees = loadedData ? loadedData : [
+        ["", "", "", "", "", "", "", "", ""],
+        ["", "", "", "", "", "", "", "", ""],
+        ["", "", "", "", "", "", "", "", ""]
     ];
 
-    defaultRows.forEach(row => {
+    employees.forEach(row => {
         const tr = document.createElement("tr");
-
-        row.forEach((cell, i) => {
+        row.forEach(cell => {
             const td = document.createElement("td");
             td.contentEditable = "true";
             td.innerText = cell;
-            td.oninput = () => updateAllTotals(weekDiv);
+            td.oninput = () => { saveLocal(); calculateTotals(); };
             tr.appendChild(td);
         });
-
-        // Total cell
-        const totalCell = document.createElement("td");
-        totalCell.className = "totalCell";
-        totalCell.innerText = "0.00";
-        tr.appendChild(totalCell);
-
         tbody.appendChild(tr);
     });
 
     weekDiv.appendChild(table);
     container.appendChild(weekDiv);
-
-    updateAllTotals(weekDiv);
+    calculateTotals();
+    saveLocal();
 }
 
-</script>
 
+
+// ---------- Calculate Weekly Totals + PTO ----------
+function calculateTotals() {
+    document.querySelectorAll(".week-container").forEach(week => {
+        const rows = week.querySelectorAll("tbody tr");
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll("td");
+            let total = 0;
+
+            // last cell is total-hours column
+            for (let i = 1; i <= 7; i++) {
+                let value = cells[i].innerText.trim();
+
+                // PTO logic
+                if (value.toLowerCase() === "pto") {
+                    total += 8;
+                }
+
+                // If numeric hours exist
+                let numeric = parseFloat(value);
+                if (!isNaN(numeric)) {
+                    total += numeric;
+                }
+            }
+
+            cells[8].innerText = total.toFixed(2);
+        });
+    });
+}
+
+
+
+// ---------- Local Storage Save ----------
+function saveLocal() {
+    const weeks = [...document.querySelectorAll(".week-container")].map(week => {
+        return [...week.querySelectorAll("tbody tr")].map(tr =>
+            [...tr.children].map(td => td.innerText)
+        );
+    });
+
+    localStorage.setItem("schedule560_data", JSON.stringify(weeks));
+}
+
+
+
+// ---------- Load from Local Storage ----------
+function loadLocal() {
+    const data = localStorage.getItem("schedule560_data");
+    if (!data) return;
+
+    const weeks = JSON.parse(data);
+    weeks.forEach(week => createWeek(week));
+}
+
+
+
+// ---------- Import from GitHub (no token needed) ----------
+async function importFromGitHub() {
+    const url = `https://raw.githubusercontent.com/${githubUser}/${githubRepo}/main/${githubPath}`;
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) {
+            alert("Error loading file from GitHub.");
+            return;
+        }
+
+        const weeks = await res.json();
+        document.getElementById("weeks").innerHTML = "";
+        weeks.forEach(w => createWeek(w));
+
+        alert("Loaded from GitHub!");
+    } catch {
+        alert("Failed to import.");
+    }
+}
+
+
+
+// ---------- Export to GitHub (token required) ----------
+async function exportToGitHub() {
+    const token = document.getElementById("githubToken").value.trim();
+    if (!token) {
+        alert("GitHub token required to save.");
+        return;
+    }
+
+    // Build JSON package
+    const weeks = [...document.querySelectorAll(".week-container")].map(week => {
+        return [...week.querySelectorAll("tbody tr")].map(tr =>
+            [...tr.children].map(td => td.innerText)
+        );
+    });
+
+    const jsonContent = JSON.stringify(weeks, null, 2);
+
+    const apiURL = `https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`;
+
+    // Retrieve SHA of existing file
+    const existingReq = await fetch(apiURL);
+    const existing = await existingReq.json();
+    const sha = existing.sha;
+
+    const body = {
+        message: "Update schedule560.json",
+        content: btoa(unescape(encodeURIComponent(jsonContent))),
+        sha: sha
+    };
+
+    const res = await fetch(apiURL, {
+        method: "PUT",
+        headers: {
+            "Authorization": `token ${token}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+        alert("Saved to GitHub!");
+    } else {
+        alert("Failed to save.");
+    }
+}
+
+
+
+// ---------- Startup ----------
+loadLocal();
+calculateTotals();
+
+</script>
 </body>
 </html>
