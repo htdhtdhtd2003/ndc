@@ -1,291 +1,453 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weekly Scheduler + PTO + GitHub + JSON + Local</title>
+<title>Weekly Scheduler + GitHub Export/Import</title>
 
 <style>
-  body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-  .controls { margin-bottom: 20px; }
-  .week-container { 
-    background: white; 
-    padding: 15px; 
-    border: 1px solid #ccc; 
-    border-radius: 10px; 
-    margin-bottom: 25px;
-  }
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  th, td { border: 1px solid #888; padding: 6px; text-align: center; }
-  button { padding: 8px 12px; margin: 5px; cursor: pointer; }
-  .delete-week { background: #d9534f; color: white; border: none; border-radius: 6px; }
-  .add-week { background: #0275d8; color: white; border: none; border-radius: 6px; }
-  .save-btn { background: #5cb85c; color: white; border: none; border-radius: 6px; }
-  .load-btn { background: #5bc0de; color: white; border: none; border-radius: 6px; }
-  .totalCell { background: #eef8ff; font-weight: bold; }
-</style>
+  body { font-family: Arial, sans-serif; padding: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: auto; }
+  th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+  th { background: #f4f4f4; }
+  input { width: 98%; padding: 4px; font-size: 14px; box-sizing: border-box; }
+  button { padding: 6px 10px; margin: 4px 2px; }
+  .total-row { background: #eef7ff; font-weight: bold; }
+  .week-block { border: 2px solid #0077ff; padding: 10px; margin-bottom: 20px; border-radius: 8px; }
+  .week-title { font-size: 19px; font-weight: bold; margin-bottom: 6px; }
+  #topButtons button { margin-right: 6px; }
+  .removeBtn { background-color: #ff4d4d; color: white; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px; }
+  .removeBtn:hover { background-color: #ff1a1a; }
 
+  .timeError { color: red; font-size: 13px; padding-top: 6px; margin: 0; }
+  .invalidTime { border: 2px solid red !important; background-color: #ffecec; }
+
+  .delWeekBtn {
+    background:#cc0000; color:white; border:none; padding:6px 10px;
+    border-radius:6px; margin-left:20px; cursor:pointer;
+  }
+
+  @media print {
+    @page { size: letter landscape; margin: 0.3in; }
+    button, #topButtons { display: none !important; }
+    input { border: none; width: 100%; font-size: 12px; padding: 0; background: transparent; }
+    table { width: 100%; table-layout: fixed; font-size: 12px; border-collapse: collapse; }
+    th, td { padding: 2px; word-wrap: break-word; border: 1px solid #000; }
+    .week-block { page-break-after: always; border: none; padding: 0; margin: 0; }
+    th:last-child, td:last-child { display: none; }
+    .timeError { display: none; }
+  }
+</style>
 </head>
+
 <body>
 
-<h1>Weekly Scheduler</h1>
+<h2>Weekly Scheduler</h2>
 
-<div class="controls">
-  <button class="add-week" onclick="createWeek()">+ Add Week</button>
-  <br><br>
+<!-- GitHub Token -->
+<label><b>GitHub Token:</b></label>
+<input type="password" id="githubToken" placeholder="Enter GitHub Token" style="width:300px;margin-bottom:10px;">
+<br>
 
-  <label><b>GitHub Token (ONLY for save):</b></label><br>
-  <input id="githubToken" type="password" placeholder="GitHub Personal Access Token">
-  <br><br>
+<div id="topButtons">
+  <button onclick="createNewWeek()">➕ Add New Week</button>
 
-  <button class="save-btn" onclick="exportToGitHub()">Save to GitHub</button>
-  <button class="load-btn" onclick="importFromGitHub()">Load from GitHub</button>
+  <!-- Local -->
+  <button onclick="exportData()">⬇ Export</button>
+  <button onclick="triggerImport()">⬆ Import</button>
+  <button onclick="saveLocal()">💾 Save</button>
+  <button onclick="loadLocal()">📂 Load</button>
 
-  <br><br>
-  <button onclick="exportLocalFile()">Export JSON File</button>
-  <input type="file" id="fileInput" onchange="importLocalFile()">
+  <!-- GitHub -->
+  <button onclick="saveToGithub()">⬆ GitHub Save</button>
+  <button onclick="loadFromGithub()">⬇ GitHub Load</button>
+
+  <!-- Print -->
+  <button onclick="window.print()">🖨 Print</button>
 </div>
 
+<input type="file" id="importFile" style="display:none" accept=".json" onchange="handleImport(event)">
 
-<div id="weeks"></div>
-
+<div id="weeksContainer"></div>
 
 <script>
-// GitHub Repo Configuration
+let weekCount = 0;
+
+/* ---------- GitHub Settings ---------- */
 const githubUser = "htdhtdhtd2003";
 const githubRepo = "ndc";
 const githubPath = "schedule560.json";
 
+/* ---------- Utilities ---------- */
+function pad2(n){ return n.toString().padStart(2,"0"); }
+function fmt(date){ return pad2(date.getUTCMonth()+1) + "/" + pad2(date.getUTCDate()); }
 
-// ---------------------- PTO & Time Calculation ----------------------
-function parseHours(text) {
-    text = text.trim();
+/* ---------- CREATE NEW WEEK ---------- */
+function createNewWeek(copyEmployees = false) {
+  weekCount++;
+  const container = document.getElementById("weeksContainer");
+  let autoDate = "";
 
-    if (text.toLowerCase() === "pto") return 8;
-
-    if (!text.includes("-")) return 0;
-
-    let [start, end] = text.split("-");
-
-    function convert(t) {
-        t = t.trim().toLowerCase();
-        let [num, ampm] = t.split(/(am|pm)/);
-        let [h, m] = num.split(":").map(Number);
-        if (ampm === "pm" && h !== 12) h += 12;
-        if (ampm === "am" && h === 12) h = 0;
-        return h + (m || 0) / 60;
+  if (weekCount > 1) {
+    const prev = document.querySelector(`#week_${weekCount-1} .weekStartInput`);
+    if (prev && prev.value) {
+      const [y,m,d] = prev.value.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + 7);
+      autoDate = dt.toISOString().slice(0,10);
     }
+  }
 
-    return Math.max(0, convert(end) - convert(start));
-}
+  const block = document.createElement("div");
+  block.className = "week-block";
+  block.id = "week_" + weekCount;
 
-function updateTotals(weekDiv) {
-    const rows = weekDiv.querySelectorAll("tbody tr");
+  block.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="week-title">Week ${weekCount}</div>
+      <div>
+        <button onclick="addEmployee(${weekCount})">+ Add Employee</button>
+        <button onclick="copyPreviousWeekEmployees(${weekCount})">⤵ Copy Previous Week Employees</button>
+        <button class="delWeekBtn" onclick="deleteWeek(${weekCount})">🗑 Delete Week</button>
+      </div>
+    </div>
 
-    rows.forEach(row => {
-        const cells = [...row.children];
-        let total = 0;
+    <label><b>Week Beginning (Sunday):</b></label><br>
+    <input type="date" class="weekStartInput" value="${autoDate}">
+    <p class="dateError" style="color:red;font-size:14px;margin:6px 0 0 0;"></p>
+    <p class="timeError"></p>
 
-        for (let i = 1; i <= 7; i++) {
-            total += parseHours(cells[i].innerText);
-        }
-
-        cells[8].innerText = total.toFixed(2);
-    });
-}
-
-
-
-// ---------------------- CREATE WEEK ----------------------
-function createWeek(loadedData = null) {
-    const container = document.getElementById("weeks");
-
-    const weekDiv = document.createElement("div");
-    weekDiv.className = "week-container";
-
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "Delete This Week";
-    delBtn.className = "delete-week";
-    delBtn.onclick = () => {
-        if (confirm("Delete this week?")) {
-            weekDiv.remove();
-            saveLocal();
-        }
-    };
-
-    weekDiv.appendChild(delBtn);
-
-    const table = document.createElement("table");
-    table.innerHTML = `
+    <table>
       <thead>
-        <tr>
+        <tr class="headerRow">
           <th>Employee</th>
-          <th>Sun</th><th>Mon</th><th>Tue</th>
-          <th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
-          <th>Total</th>
+          <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+          <th>PTO</th>
+          <th>Total Hours</th>
+          <th>Remove</th>
         </tr>
       </thead>
-      <tbody></tbody>
-    `;
+      <tbody class="tbody"></tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="9">Total Hours (All Employees)</td>
+          <td class="grandTotal">0.00</td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
 
-    const tbody = table.querySelector("tbody");
+  container.appendChild(block);
 
-    const rows = loadedData ? loadedData : [
-        ["", "", "", "", "", "", "", "", "0"],
-        ["", "", "", "", "", "", "", "", "0"],
-        ["", "", "", "", "", "", "", "", "0"]
-    ];
+  const input = block.querySelector(".weekStartInput");
+  input.addEventListener("change", () => validateAndUpdateHeaders(block.id));
 
-    rows.forEach(row => {
-        const tr = document.createElement("tr");
+  if (autoDate) validateAndUpdateHeaders(block.id);
+  if (copyEmployees) copyPreviousWeekEmployees(weekCount);
+}
 
-        row.forEach((cell, i) => {
-            const td = document.createElement("td");
-            td.innerText = cell;
+/* ---------- DELETE WEEK ---------- */
+function deleteWeek(num){
+  document.getElementById(`week_${num}`).remove();
 
-            td.contentEditable = i !== 8;
-            if (i === 8) td.classList.add("totalCell");
+  // renumber weeks
+  const blocks = document.querySelectorAll(".week-block");
+  weekCount = blocks.length;
 
-            td.oninput = () => {
-                updateTotals(weekDiv);
-                saveLocal();
-            };
+  blocks.forEach((b, i)=>{
+    b.id = "week_" + (i+1);
+    b.querySelector(".week-title").textContent = "Week " + (i+1);
+    const btn = b.querySelector(".delWeekBtn");
+    btn.setAttribute("onclick", `deleteWeek(${i+1})`);
+  });
+}
 
-            tr.appendChild(td);
-        });
+/* ---------- DATE HEADER ---------- */
+function validateAndUpdateHeaders(weekId){
+  const block = document.getElementById(weekId);
+  const input = block.querySelector(".weekStartInput");
+  const error = block.querySelector(".dateError");
 
-        tbody.appendChild(tr);
+  if (!input.value) {
+    error.textContent = "";
+    const header = block.querySelector(".headerRow").children;
+    ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach((v,i)=>header[i+1].textContent=v);
+    return;
+  }
+
+  const [y,m,d] = input.value.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+
+  if (date.getUTCDay() !== 0) {
+    error.textContent = "❌ Date must be a Sunday.";
+    input.value = "";
+    return;
+  }
+  error.textContent = "";
+
+  const header = block.querySelector(".headerRow").children;
+  for (let i = 0; i < 7; i++){
+    const dt = new Date(date);
+    dt.setUTCDate(date.getUTCDate() + i);
+    header[i+1].textContent = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i] + " (" + fmt(dt) + ")";
+  }
+}
+
+/* ---------- TIME PARSE ---------- */
+function parseTime(str){
+  if (!str) return null;
+  const clean = String(str).toLowerCase().replace(/\s+/g,"");
+  const m = clean.match(/^(\d{1,2})(:?(\d{2}))?(a|p)$/);
+  if (!m) return "INVALID";
+  let h = parseInt(m[1]); 
+  const mins = m[3] ? parseInt(m[3]) : 0;
+  const ap = m[4];
+  if (h < 1 || h > 12 || mins < 0 || mins > 59) return "INVALID";
+  if (ap === "p" && h !== 12) h += 12;
+  if (ap === "a" && h === 12) h = 0;
+  return h*60 + mins;
+}
+
+function calcHours(range){
+  if (!range || !range.includes("-")) return 0;
+  const [s,e] = range.split("-").map(v=>v.trim());
+  const start = parseTime(s);
+  const end = parseTime(e);
+  if (start==="INVALID" || end==="INVALID") return "INVALID";
+  let diff = end - start;
+  if (diff < 0) diff += 1440;
+  return diff / 60;
+}
+
+/* ---------- RECALC ---------- */
+function recalcTotals(block){
+  let grand = 0;
+  let anyInvalid = false;
+  const timeError = block.querySelector(".timeError");
+  timeError.textContent = "";
+
+  block.querySelectorAll(".empRow").forEach(row=>{
+    let total = 0;
+    let ptoTotal = 0;
+
+    // regular hours
+    row.querySelectorAll(".timeInput").forEach(inp=>{
+      const res = calcHours(inp.value.trim());
+      if (res === "INVALID") {
+        inp.classList.add("invalidTime");
+        anyInvalid = true;
+      } else {
+        inp.classList.remove("invalidTime");
+        total += Number(res);
+      }
     });
 
-    weekDiv.appendChild(table);
-    container.appendChild(weekDiv);
-
-    updateTotals(weekDiv);
-    saveLocal();
-}
-
-
-
-// ---------------------- LOCAL STORAGE SAVE/LOAD ----------------------
-function saveLocal() {
-    const weeks = [...document.querySelectorAll(".week-container")].map(week =>
-        [...week.querySelectorAll("tbody tr")].map(tr =>
-            [...tr.children].map(td => td.innerText)
-        )
-    );
-
-    localStorage.setItem("schedule560_data", JSON.stringify(weeks));
-}
-
-function loadLocal() {
-    const data = localStorage.getItem("schedule560_data");
-    if (!data) return;
-    const weeks = JSON.parse(data);
-    weeks.forEach(w => createWeek(w));
-}
-
-
-
-// ---------------------- EXPORT JSON FILE ----------------------
-function exportLocalFile() {
-    const data = localStorage.getItem("schedule560_data") || "[]";
-
-    const blob = new Blob([data], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "schedule560.json";
-    a.click();
-}
-
-
-
-// ---------------------- IMPORT JSON FILE ----------------------
-function importLocalFile() {
-    const file = document.getElementById("fileInput").files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = e => {
-        const weeks = JSON.parse(e.target.result);
-        document.getElementById("weeks").innerHTML = "";
-        weeks.forEach(w => createWeek(w));
-        saveLocal();
-    };
-    reader.readAsText(file);
-}
-
-
-
-// ---------------------- GITHUB IMPORT (FIXED) ----------------------
-async function importFromGitHub() {
-    const timestamp = Date.now();
-    const url = `https://raw.githubusercontent.com/${githubUser}/${githubRepo}/main/${githubPath}?v=${timestamp}`;
-
-    try {
-        const res = await fetch(url, { cache: "no-store" });
-
-        if (!res.ok) {
-            alert("Failed to load file from GitHub.");
-            return;
-        }
-
-        const weeks = await res.json();
-
-        document.getElementById("weeks").innerHTML = "";
-        weeks.forEach(w => createWeek(w));
-
-        saveLocal();
-        alert("Loaded successfully from GitHub!");
-
-    } catch (err) {
-        alert("GitHub import failed.");
+    // PTO hours
+    const pto = row.querySelector(".ptoInput");
+    if (pto.value.trim()) {
+      const res = calcHours(pto.value.trim());
+      if (res === "INVALID") {
+        pto.classList.add("invalidTime");
+        anyInvalid = true;
+      } else {
+        pto.classList.remove("invalidTime");
+        ptoTotal = Number(res);
+      }
     }
+
+    // employee total = regular + PTO
+    const finalEmpTotal = total + ptoTotal;
+    row.querySelector(".empTotal").textContent = finalEmpTotal.toFixed(2);
+
+    // grand total = regular only (no PTO)
+    grand += total;
+  });
+
+  block.querySelector(".grandTotal").textContent = grand.toFixed(2);
+
+  if (anyInvalid) {
+    timeError.textContent = "❌ One or more time entries are invalid.";
+  }
 }
 
+/* ---------- ADD EMPLOYEE ---------- */
+function escapeHtmlAttr(str){ 
+  return String(str||"").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
 
+function addEmployee(weekNum, nameValue=""){
+  const block = document.getElementById("week_" + weekNum);
+  const tbody = block.querySelector(".tbody");
 
-// ---------------------- GITHUB EXPORT ----------------------
-async function exportToGitHub() {
-    const token = document.getElementById("githubToken").value.trim();
-    if (!token) return alert("GitHub token required.");
+  const row = document.createElement("tr");
+  row.className = "empRow";
+  row.innerHTML = `
+    <td><input class="empName" value="${escapeHtmlAttr(nameValue)}"></td>
+    ${"<td><input class='timeInput'></td>".repeat(7)}
+    <td><input class="ptoInput" placeholder="PTO"></td>
+    <td class="empTotal">0.00</td>
+    <td><button class="removeBtn" onclick="removeEmployee(this)">X</button></td>
+  `;
 
-    const weeks = [...document.querySelectorAll(".week-container")].map(week =>
-        [...week.querySelectorAll("tbody tr")].map(tr =>
-            [...tr.children].map(td => td.innerText)
-        )
-    );
+  tbody.appendChild(row);
 
-    const content = JSON.stringify(weeks, null, 2);
-    const getUrl = `https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`;
+  row.querySelectorAll("input").forEach(inp=>{
+    inp.addEventListener("input", ()=>recalcTotals(block));
+    inp.addEventListener("blur", ()=>recalcTotals(block));
+  });
 
-    const existing = await fetch(getUrl);
-    const oldData = await existing.json();
-    const sha = oldData.sha;
+  recalcTotals(block);
+}
 
-    const body = {
-        message: "Update schedule560.json",
-        content: btoa(unescape(encodeURIComponent(content))),
-        sha: sha
-    };
+function removeEmployee(btn){
+  const row = btn.closest("tr");
+  const block = row.closest(".week-block");
+  row.remove();
+  recalcTotals(block);
+}
 
-    const res = await fetch(getUrl, {
-        method: "PUT",
-        headers: {
-            "Authorization": `token ${token}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
+function copyPreviousWeekEmployees(w){
+  if (w <= 1) return;
+  const prev = document.getElementById("week_" + (w - 1));
+  const curr = document.getElementById("week_" + w);
+  const names = [...prev.querySelectorAll(".empName")].map(i=>i.value);
+  names.forEach(n=>addEmployee(w,n));
+}
+
+/* ---------- EXPORT / IMPORT ---------- */
+function exportData(){
+  const data = collectData();
+  downloadJSON(data, "schedule.json");
+}
+
+function collectData(){
+  const data = { weeks: [] };
+  const blocks = document.querySelectorAll(".week-block");
+
+  blocks.forEach(block=>{
+    const start = block.querySelector(".weekStartInput").value || "";
+    const employees = [];
+
+    block.querySelectorAll(".empRow").forEach(row=>{
+      employees.push({
+        name: row.querySelector(".empName").value || "",
+        times: [...row.querySelectorAll(".timeInput")].map(inp => inp.value || ""),
+        pto: row.querySelector(".ptoInput").value || ""
+      });
     });
 
-    if (res.ok) alert("Saved to GitHub!");
-    else alert("Failed to save.");
+    data.weeks.push({ start, employees });
+  });
+
+  return data;
 }
 
+function downloadJSON(obj, filename){
+  const blob = new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
 
+function triggerImport(){ document.getElementById("importFile").click(); }
 
-// ---------------------- INITIAL LOAD ----------------------
-loadLocal();
+function handleImport(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => importObject(JSON.parse(evt.target.result));
+  reader.readAsText(file);
+}
 
+function importObject(obj){
+  document.getElementById("weeksContainer").innerHTML = "";
+  weekCount = 0;
+  if (!obj || !obj.weeks) return;
+
+  obj.weeks.forEach(week=>{
+    createNewWeek(false);
+    const block = document.getElementById("week_" + weekCount);
+    block.querySelector(".weekStartInput").value = week.start || "";
+    validateAndUpdateHeaders(block.id);
+
+    week.employees.forEach(emp=>{
+      addEmployee(weekCount, emp.name || "");
+      const lastRow = block.querySelector(".tbody").lastElementChild;
+
+      emp.times.forEach((t,i)=>{
+        if (lastRow.querySelectorAll(".timeInput")[i])
+          lastRow.querySelectorAll(".timeInput")[i].value = t;
+      });
+
+      lastRow.querySelector(".ptoInput").value = emp.pto || "";
+    });
+
+    recalcTotals(block);
+  });
+}
+
+/* ---------- LOCAL STORAGE ---------- */
+function saveLocal(){
+  localStorage.setItem("schedulerData", JSON.stringify(collectData()));
+  alert("Saved locally!");
+}
+function loadLocal(){
+  const raw = localStorage.getItem("schedulerData");
+  if (!raw) return alert("No saved data.");
+  importObject(JSON.parse(raw));
+}
+
+/* ---------- GITHUB SAVE ---------- */
+async function saveToGithub(){
+  const token = document.getElementById("githubToken").value.trim();
+  if (!token) return alert("Enter GitHub token first.");
+
+  const data = collectData();
+  const jsonStr = JSON.stringify(data,null,2);
+  const contentBase64 = btoa(unescape(encodeURIComponent(jsonStr)));
+
+  let sha = null;
+  try {
+    const meta = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`);
+    if (meta.ok) {
+      const info = await meta.json();
+      sha = info.sha;
+    }
+  } catch(e){}
+
+  const res = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token
+    },
+    body: JSON.stringify({
+      message: "Scheduler update",
+      content: contentBase64,
+      sha: sha || undefined
+    })
+  });
+
+  if (res.ok) alert("Saved to GitHub!");
+  else alert("GitHub Save Failed: " + res.status);
+}
+
+/* ---------- GITHUB LOAD (NO TOKEN REQUIRED) ---------- */
+async function loadFromGithub(){
+  const res = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`);
+
+  if (!res.ok) return alert("GitHub Load Failed: " + res.status);
+
+  const info = await res.json();
+  const decoded = decodeURIComponent(escape(atob(info.content)));
+
+  importObject(JSON.parse(decoded));
+  alert("Loaded from GitHub!");
+}
+
+/* ---------- INIT ---------- */
+createNewWeek();
 </script>
 </body>
 </html>
