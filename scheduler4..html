@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weekly Scheduler with PTO Hours</title>
+
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+  h1 { margin-bottom: 20px; }
+  .week-container { 
+    background: white;
+    padding: 15px;
+    margin-bottom: 25px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #777; padding: 7px; text-align: center; }
+  td[contenteditable="true"] { background: #fafafa; }
+  button { padding: 8px 14px; margin: 5px; cursor: pointer; }
+  .add-week { background: #0275d8; color: white; border: none; border-radius: 6px; }
+  .delete-week { background: #d9534f; color: white; border: none; border-radius: 6px; }
+</style>
+
+</head>
+<body>
+
+<h1>Weekly Scheduler (Auto PTO + Time Total)</h1>
+
+<button class="add-week" onclick="createWeek()">+ Add Week</button>
+
+<div id="weeks"></div>
+
+<script>
+// ------------------------ TIME CALC FUNCTIONS ------------------------
+
+function parseTime(str) {
+    str = str.trim().toLowerCase();
+    if (!str) return null;
+
+    let match = str.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+    if (!match) return null;
+
+    let hour = parseInt(match[1]);
+    let min = match[2] ? parseInt(match[2]) : 0;
+    let ampm = match[3];
+
+    if (ampm === "pm" && hour < 12) hour += 12;
+    if (ampm === "am" && hour === 12) hour = 0;
+
+    return hour * 60 + min;
+}
+
+function calculateRange(str) {
+    if (!str.includes("-")) return 0;
+
+    let parts = str.split("-");
+    if (parts.length !== 2) return 0;
+
+    let start = parseTime(parts[0]);
+    let end = parseTime(parts[1]);
+
+    if (start == null || end == null) return 0;
+    if (end < start) end += 24 * 60; // handle overnight
+
+    return (end - start) / 60;
+}
+
+function calculateEmployeeTotal(tr) {
+    let tds = [...tr.querySelectorAll("td")].slice(1); 
+    let total = 0;
+
+    tds.forEach(td => {
+        let v = td.innerText.trim();
+
+        if (!v) return;
+
+        // PTO adds 8 hours
+        if (v.toLowerCase() === "pto") {
+            total += 8;
+            return;
+        }
+
+        // Time range (ex: 9-5 or 8:00am-4:30pm)
+        total += calculateRange(v);
+    });
+
+    tr.querySelector(".totalCell").innerText = total.toFixed(2);
+}
+
+// Update all totals in a week
+function updateAllTotals(weekDiv) {
+    weekDiv.querySelectorAll("tbody tr").forEach(tr => {
+        calculateEmployeeTotal(tr);
+    });
+}
+
+// ------------------------ CREATE WEEK ------------------------
+
+function createWeek(loadedRows = null) {
+    const container = document.getElementById("weeks");
+
+    const weekDiv = document.createElement("div");
+    weekDiv.className = "week-container";
+
+    // Delete button
+    const del = document.createElement("button");
+    del.className = "delete-week";
+    del.textContent = "Delete This Week";
+    del.onclick = () => weekDiv.remove();
+    weekDiv.appendChild(del);
+
+    // Table
+    const table = document.createElement("table");
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th>
+          <th>Thu</th><th>Fri</th><th>Sat</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    `;
+
+    const tbody = table.querySelector("tbody");
+
+    const defaultRows = loadedRows || [
+        ["", "", "", "", "", "", "", ""],
+        ["", "", "", "", "", "", "", ""],
+        ["", "", "", "", "", "", "", ""]
+    ];
+
+    defaultRows.forEach(row => {
+        const tr = document.createElement("tr");
+
+        row.forEach((cell, i) => {
+            const td = document.createElement("td");
+            td.contentEditable = "true";
+            td.innerText = cell;
+            td.oninput = () => updateAllTotals(weekDiv);
+            tr.appendChild(td);
+        });
+
+        // Total cell
+        const totalCell = document.createElement("td");
+        totalCell.className = "totalCell";
+        totalCell.innerText = "0.00";
+        tr.appendChild(totalCell);
+
+        tbody.appendChild(tr);
+    });
+
+    weekDiv.appendChild(table);
+    container.appendChild(weekDiv);
+
+    updateAllTotals(weekDiv);
+}
+
+</script>
+
+</body>
+</html>
