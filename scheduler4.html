@@ -1,4 +1,4 @@
-{"id":"65022","variant":"standard","title":"Weekly Scheduler Full PTO Fix"}
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -58,11 +58,13 @@
 
 <script>
 let weekCount = 0;
+
+/* ---------- GitHub Settings ---------- */
 const githubUser = "htdhtdhtd2003";
 const githubRepo = "ndc";
 const githubPath = "schedule560.json";
 
-/* Utilities */
+/* ---------- Utilities ---------- */
 function pad2(n){ return n.toString().padStart(2,"0"); }
 function fmt(date){ return pad2(date.getUTCMonth()+1) + "/" + pad2(date.getUTCDate()); }
 
@@ -129,13 +131,13 @@ function createNewWeek(copyEmployees = false) {
   if (copyEmployees) copyPreviousWeekEmployees(weekCount);
 }
 
-/* DELETE WEEK */
+/* ---------- DELETE WEEK ---------- */
 function removeWeek(wid){
   const block = document.getElementById("week_" + wid);
   if(block) block.remove();
 }
 
-/* DATE HEADER */
+/* ---------- DATE HEADER ---------- */
 function validateAndUpdateHeaders(weekId){
   const block = document.getElementById(weekId);
   const input = block.querySelector(".weekStartInput");
@@ -166,126 +168,141 @@ function validateAndUpdateHeaders(weekId){
   }
 }
 
-/* TIME PARSE */
+/* ---------- TIME PARSE ---------- */
 function parseTime(str){
-  if(!str) return null;
+  if (!str) return null;
   const clean = String(str).toLowerCase().replace(/\s+/g,"");
   if(clean === "pto") return "PTO";
   const m = clean.match(/^(\d{1,2})(:?(\d{2}))?(a|p)$/);
-  if(!m) return "INVALID";
-  let h = parseInt(m[1]);
+  if (!m) return "INVALID";
+  let h = parseInt(m[1]); 
   const mins = m[3] ? parseInt(m[3]) : 0;
   const ap = m[4];
-  if(h<1||h>12||mins<0||mins>59) return "INVALID";
-  if(ap==="p" && h!==12) h+=12;
-  if(ap==="a" && h===12) h=0;
+  if (h < 1 || h > 12 || mins < 0 || mins > 59) return "INVALID";
+  if (ap === "p" && h !== 12) h += 12;
+  if (ap === "a" && h === 12) h = 0;
   return h*60 + mins;
 }
 
 function calcHours(range){
-  if(!range || !range.includes("-")) return 0;
-  const [s,e] = range.split("-").map(v=>v.trim().toUpperCase());
-  if(s==="PTO" || e==="PTO") return "PTO";
-
-  const start=parseTime(s);
-  const end=parseTime(e);
-  if(start==="INVALID" || end==="INVALID") return "INVALID";
-
+  if (!range || !range.includes("-")) return 0;
+  const [s,e] = range.split("-").map(v=>v.trim());
+  const start = parseTime(s);
+  const end = parseTime(e);
+  if (start === "INVALID" || end === "INVALID") return "INVALID";
+  if(start === "PTO" || end === "PTO") return "PTO";
   let diff = end - start;
-  if(diff<0) diff+=1440;
-  return diff/60;
+  if (diff < 0) diff += 1440;
+  return diff / 60;
 }
 
-/* RECALC TOTALS */
+/* ---------- RECALC ---------- */
 function recalcTotals(block){
   let grand = 0;
-  let anyInvalid=false;
+  let anyInvalid = false;
   const timeError = block.querySelector(".timeError");
-  timeError.textContent="";
+  timeError.textContent = "";
 
   block.querySelectorAll(".empRow").forEach(row=>{
-    let total=0, rowGrand=0;
+    let total = 0;
+    let rowGrand = 0;
     row.querySelectorAll(".timeInput").forEach(inp=>{
       const val = inp.value.trim();
       const res = calcHours(val);
       inp.classList.remove("invalidTime","ptoTime");
 
-      if(res==="INVALID"){ inp.classList.add("invalidTime"); anyInvalid=true; }
-      else if(res==="PTO"){ inp.classList.add("ptoTime"); total+=8; }
-      else { total+=Number(res); rowGrand+=Number(res); }
+      if(res === "INVALID") { inp.classList.add("invalidTime"); anyInvalid=true; }
+      else if(res === "PTO") { inp.classList.add("ptoTime"); total += 8; } 
+      else total += Number(res);
+
+      if(res !== "PTO" && res !== "INVALID") rowGrand += Number(res);
     });
     row.querySelector(".empTotal").textContent = total.toFixed(2);
-    grand+=rowGrand;
+    grand += rowGrand;
   });
 
   block.querySelector(".grandTotal").textContent = grand.toFixed(2);
   if(anyInvalid) timeError.textContent = "❌ One or more time entries are invalid.";
 }
 
-/* ADD EMPLOYEE */
-function escapeHtmlAttr(str){ return String(str||"").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+/* ---------- ADD EMPLOYEE ---------- */
+function escapeHtmlAttr(str){ 
+  return String(str||"").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
 
-function addEmployee(weekNum,nameValue=""){
-  const block=document.getElementById("week_"+weekNum);
-  const tbody=block.querySelector(".tbody");
-  const row=document.createElement("tr");
-  row.className="empRow";
-  row.innerHTML=`
+function addEmployee(weekNum, nameValue=""){
+  const block = document.getElementById("week_" + weekNum);
+  const tbody = block.querySelector(".tbody");
+
+  const row = document.createElement("tr");
+  row.className = "empRow";
+  row.innerHTML = `
     <td><input class="empName" value="${escapeHtmlAttr(nameValue)}"></td>
     ${"<td><input class='timeInput'></td>".repeat(7)}
     <td class="empTotal">0.00</td>
     <td><button class="removeBtn" onclick="removeEmployee(this)">X</button></td>
   `;
+
   tbody.appendChild(row);
-  row.querySelectorAll("input").forEach(inp=>{ inp.addEventListener("input",()=>recalcTotals(block)); inp.addEventListener("blur",()=>recalcTotals(block)); });
+
+  row.querySelectorAll("input").forEach(inp=>{
+    inp.addEventListener("input", ()=>recalcTotals(block));
+    inp.addEventListener("blur", ()=>recalcTotals(block));
+  });
+
   recalcTotals(block);
 }
 
 function removeEmployee(btn){
-  const row=btn.closest("tr");
-  const block=row.closest(".week-block");
+  const row = btn.closest("tr");
+  const block = row.closest(".week-block");
   row.remove();
   recalcTotals(block);
 }
 
 function copyPreviousWeekEmployees(w){
-  if(w<=1) return;
-  const prev=document.getElementById("week_"+(w-1));
-  const names=[...prev.querySelectorAll(".empName")].map(i=>i.value);
+  if (w <= 1) return;
+  const prev = document.getElementById("week_" + (w - 1));
+  const curr = document.getElementById("week_" + w);
+  const names = [...prev.querySelectorAll(".empName")].map(i=>i.value);
   names.forEach(n=>addEmployee(w,n));
 }
 
-/* EXPORT / IMPORT */
+/* ---------- EXPORT / IMPORT ---------- */
 function exportData(){ downloadJSON(collectData(),"schedule.json"); }
 
 function collectData(){
-  const data={weeks:[]};
+  const data = { weeks: [] };
   for(let i=1;i<=weekCount;i++){
-    const block=document.getElementById("week_"+i);
+    const block = document.getElementById("week_" + i);
     if(!block) continue;
-    const start=block.querySelector(".weekStartInput").value||"";
-    const employees=[];
+    const start = block.querySelector(".weekStartInput").value || "";
+    const employees = [];
     block.querySelectorAll(".empRow").forEach(row=>{
-      employees.push({ name: row.querySelector(".empName").value||"", times: [...row.querySelectorAll(".timeInput")].map(inp=>inp.value||"") });
+      employees.push({
+        name: row.querySelector(".empName").value || "",
+        times: [...row.querySelectorAll(".timeInput")].map(inp=>inp.value||"")
+      });
     });
-    data.weeks.push({start,employees});
+    data.weeks.push({ start, employees });
   }
   return data;
 }
 
-function downloadJSON(obj,filename){
-  const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a"); a.href=url; a.download=filename; a.click();
+function downloadJSON(obj, filename){
+  const blob = new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download=filename; a.click();
   URL.revokeObjectURL(url);
 }
 
 function triggerImport(){ document.getElementById("importFile").click(); }
+
 function handleImport(e){
-  const file=e.target.files[0];
+  const file = e.target.files[0];
   if(!file) return;
-  const reader=new FileReader();
-  reader.onload=evt=>importObject(JSON.parse(evt.target.result));
+  const reader = new FileReader();
+  reader.onload = evt=>importObject(JSON.parse(evt.target.result));
   reader.readAsText(file);
 }
 
@@ -300,22 +317,22 @@ function importObject(obj){
     validateAndUpdateHeaders(block.id);
     week.employees.forEach(emp=>{
       addEmployee(weekCount,emp.name||"");
-      const lastRow=block.querySelector(".tbody").lastElementChild;
+      const lastRow = block.querySelector(".tbody").lastElementChild;
       emp.times.forEach((t,i)=>{ if(lastRow.querySelectorAll(".timeInput")[i]) lastRow.querySelectorAll(".timeInput")[i].value=t; });
     });
     recalcTotals(block);
   });
 }
 
-/* LOCAL STORAGE */
+/* ---------- LOCAL STORAGE ---------- */
 function saveLocal(){ localStorage.setItem("schedulerData",JSON.stringify(collectData())); alert("Saved locally!"); }
 function loadLocal(){
-  const raw=localStorage.getItem("schedulerData");
+  const raw = localStorage.getItem("schedulerData");
   if(!raw) return alert("No saved data.");
   importObject(JSON.parse(raw));
 }
 
-/* GITHUB */
+/* ---------- GITHUB SAVE ---------- */
 async function saveToGithub(){
   const token=document.getElementById("githubToken").value.trim();
   if(!token) return alert("Enter GitHub token first.");
@@ -335,6 +352,7 @@ async function saveToGithub(){
   if(res.ok) alert("Saved to GitHub!"); else alert("GitHub Save Failed: "+res.status);
 }
 
+/* ---------- GITHUB LOAD ---------- */
 async function loadFromGithub(){
   const token=document.getElementById("githubToken").value.trim();
   if(!token) return alert("Enter GitHub token first.");
@@ -346,7 +364,7 @@ async function loadFromGithub(){
   alert("Loaded from GitHub!");
 }
 
-/* INIT */
+/* ---------- INIT ---------- */
 createNewWeek();
 </script>
 </body>
