@@ -1,10 +1,10 @@
+{"id":"65021","variant":"standard","title":"Updated Weekly Scheduler with Delete & PTO"}
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Weekly Scheduler + GitHub Export/Import</title>
-
 <style>
   body { font-family: Arial, sans-serif; padding: 10px; }
   table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: auto; }
@@ -18,14 +18,9 @@
   #topButtons button { margin-right: 6px; }
   .removeBtn { background-color: #ff4d4d; color: white; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px; }
   .removeBtn:hover { background-color: #ff1a1a; }
-
   .timeError { color: red; font-size: 13px; padding-top: 6px; margin: 0; }
   .invalidTime { border: 2px solid red !important; background-color: #ffecec; }
-
-  .delWeekBtn {
-    background:#cc0000; color:white; border:none; padding:6px 10px;
-    border-radius:6px; margin-left:20px; cursor:pointer;
-  }
+  .ptoTime { background-color: #ffffcc; } /* PTO highlight */
 
   @media print {
     @page { size: letter landscape; margin: 0.3in; }
@@ -39,35 +34,26 @@
   }
 </style>
 </head>
-
 <body>
 
 <h2>Weekly Scheduler</h2>
 
-<!-- GitHub Token -->
 <label><b>GitHub Token:</b></label>
 <input type="password" id="githubToken" placeholder="Enter GitHub Token" style="width:300px;margin-bottom:10px;">
 <br>
 
 <div id="topButtons">
   <button onclick="createNewWeek()">➕ Add New Week</button>
-
-  <!-- Local -->
   <button onclick="exportData()">⬇ Export</button>
   <button onclick="triggerImport()">⬆ Import</button>
   <button onclick="saveLocal()">💾 Save</button>
   <button onclick="loadLocal()">📂 Load</button>
-
-  <!-- GitHub -->
   <button onclick="saveToGithub()">⬆ GitHub Save</button>
   <button onclick="loadFromGithub()">⬇ GitHub Load</button>
-
-  <!-- Print -->
   <button onclick="window.print()">🖨 Print</button>
 </div>
 
 <input type="file" id="importFile" style="display:none" accept=".json" onchange="handleImport(event)">
-
 <div id="weeksContainer"></div>
 
 <script>
@@ -108,7 +94,7 @@ function createNewWeek(copyEmployees = false) {
       <div>
         <button onclick="addEmployee(${weekCount})">+ Add Employee</button>
         <button onclick="copyPreviousWeekEmployees(${weekCount})">⤵ Copy Previous Week Employees</button>
-        <button class="delWeekBtn" onclick="deleteWeek(${weekCount})">🗑 Delete Week</button>
+        <button class="removeBtn" onclick="removeWeek(${weekCount})">❌ Delete Week</button>
       </div>
     </div>
 
@@ -122,7 +108,6 @@ function createNewWeek(copyEmployees = false) {
         <tr class="headerRow">
           <th>Employee</th>
           <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
-          <th>PTO</th>
           <th>Total Hours</th>
           <th>Remove</th>
         </tr>
@@ -147,19 +132,9 @@ function createNewWeek(copyEmployees = false) {
 }
 
 /* ---------- DELETE WEEK ---------- */
-function deleteWeek(num){
-  document.getElementById(`week_${num}`).remove();
-
-  // renumber weeks
-  const blocks = document.querySelectorAll(".week-block");
-  weekCount = blocks.length;
-
-  blocks.forEach((b, i)=>{
-    b.id = "week_" + (i+1);
-    b.querySelector(".week-title").textContent = "Week " + (i+1);
-    const btn = b.querySelector(".delWeekBtn");
-    btn.setAttribute("onclick", `deleteWeek(${i+1})`);
-  });
+function removeWeek(wid){
+  const block = document.getElementById("week_" + wid);
+  if(block) block.remove();
 }
 
 /* ---------- DATE HEADER ---------- */
@@ -197,6 +172,7 @@ function validateAndUpdateHeaders(weekId){
 function parseTime(str){
   if (!str) return null;
   const clean = String(str).toLowerCase().replace(/\s+/g,"");
+  if(clean === "pto") return "PTO";
   const m = clean.match(/^(\d{1,2})(:?(\d{2}))?(a|p)$/);
   if (!m) return "INVALID";
   let h = parseInt(m[1]); 
@@ -213,7 +189,8 @@ function calcHours(range){
   const [s,e] = range.split("-").map(v=>v.trim());
   const start = parseTime(s);
   const end = parseTime(e);
-  if (start==="INVALID" || end==="INVALID") return "INVALID";
+  if (start === "INVALID" || end === "INVALID") return "INVALID";
+  if(start === "PTO" || end === "PTO") return "PTO";
   let diff = end - start;
   if (diff < 0) diff += 1440;
   return diff / 60;
@@ -228,46 +205,24 @@ function recalcTotals(block){
 
   block.querySelectorAll(".empRow").forEach(row=>{
     let total = 0;
-    let ptoTotal = 0;
-
-    // regular hours
+    let rowGrand = 0;
     row.querySelectorAll(".timeInput").forEach(inp=>{
-      const res = calcHours(inp.value.trim());
-      if (res === "INVALID") {
-        inp.classList.add("invalidTime");
-        anyInvalid = true;
-      } else {
-        inp.classList.remove("invalidTime");
-        total += Number(res);
-      }
+      const val = inp.value.trim();
+      const res = calcHours(val);
+      inp.classList.remove("invalidTime","ptoTime");
+
+      if(res === "INVALID") { inp.classList.add("invalidTime"); anyInvalid=true; }
+      else if(res === "PTO") { inp.classList.add("ptoTime"); total += 8; } 
+      else total += Number(res);
+
+      if(res !== "PTO" && res !== "INVALID") rowGrand += Number(res);
     });
-
-    // PTO hours
-    const pto = row.querySelector(".ptoInput");
-    if (pto.value.trim()) {
-      const res = calcHours(pto.value.trim());
-      if (res === "INVALID") {
-        pto.classList.add("invalidTime");
-        anyInvalid = true;
-      } else {
-        pto.classList.remove("invalidTime");
-        ptoTotal = Number(res);
-      }
-    }
-
-    // employee total = regular + PTO
-    const finalEmpTotal = total + ptoTotal;
-    row.querySelector(".empTotal").textContent = finalEmpTotal.toFixed(2);
-
-    // grand total = regular only (no PTO)
-    grand += total;
+    row.querySelector(".empTotal").textContent = total.toFixed(2);
+    grand += rowGrand;
   });
 
   block.querySelector(".grandTotal").textContent = grand.toFixed(2);
-
-  if (anyInvalid) {
-    timeError.textContent = "❌ One or more time entries are invalid.";
-  }
+  if(anyInvalid) timeError.textContent = "❌ One or more time entries are invalid.";
 }
 
 /* ---------- ADD EMPLOYEE ---------- */
@@ -284,7 +239,6 @@ function addEmployee(weekNum, nameValue=""){
   row.innerHTML = `
     <td><input class="empName" value="${escapeHtmlAttr(nameValue)}"></td>
     ${"<td><input class='timeInput'></td>".repeat(7)}
-    <td><input class="ptoInput" placeholder="PTO"></td>
     <td class="empTotal">0.00</td>
     <td><button class="removeBtn" onclick="removeEmployee(this)">X</button></td>
   `;
@@ -315,38 +269,30 @@ function copyPreviousWeekEmployees(w){
 }
 
 /* ---------- EXPORT / IMPORT ---------- */
-function exportData(){
-  const data = collectData();
-  downloadJSON(data, "schedule.json");
-}
+function exportData(){ downloadJSON(collectData(),"schedule.json"); }
 
 function collectData(){
   const data = { weeks: [] };
-  const blocks = document.querySelectorAll(".week-block");
-
-  blocks.forEach(block=>{
+  for(let i=1;i<=weekCount;i++){
+    const block = document.getElementById("week_" + i);
+    if(!block) continue;
     const start = block.querySelector(".weekStartInput").value || "";
     const employees = [];
-
     block.querySelectorAll(".empRow").forEach(row=>{
       employees.push({
         name: row.querySelector(".empName").value || "",
-        times: [...row.querySelectorAll(".timeInput")].map(inp => inp.value || ""),
-        pto: row.querySelector(".ptoInput").value || ""
+        times: [...row.querySelectorAll(".timeInput")].map(inp=>inp.value||"")
       });
     });
-
     data.weeks.push({ start, employees });
-  });
-
+  }
   return data;
 }
 
 function downloadJSON(obj, filename){
   const blob = new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
+  const a = document.createElement("a"); a.href=url; a.download=filename; a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -354,94 +300,66 @@ function triggerImport(){ document.getElementById("importFile").click(); }
 
 function handleImport(e){
   const file = e.target.files[0];
-  if (!file) return;
+  if(!file) return;
   const reader = new FileReader();
-  reader.onload = evt => importObject(JSON.parse(evt.target.result));
+  reader.onload = evt=>importObject(JSON.parse(evt.target.result));
   reader.readAsText(file);
 }
 
 function importObject(obj){
-  document.getElementById("weeksContainer").innerHTML = "";
-  weekCount = 0;
-  if (!obj || !obj.weeks) return;
-
+  document.getElementById("weeksContainer").innerHTML="";
+  weekCount=0;
+  if(!obj||!obj.weeks) return;
   obj.weeks.forEach(week=>{
     createNewWeek(false);
-    const block = document.getElementById("week_" + weekCount);
-    block.querySelector(".weekStartInput").value = week.start || "";
+    const block=document.getElementById("week_"+weekCount);
+    block.querySelector(".weekStartInput").value=week.start||"";
     validateAndUpdateHeaders(block.id);
-
     week.employees.forEach(emp=>{
-      addEmployee(weekCount, emp.name || "");
+      addEmployee(weekCount,emp.name||"");
       const lastRow = block.querySelector(".tbody").lastElementChild;
-
-      emp.times.forEach((t,i)=>{
-        if (lastRow.querySelectorAll(".timeInput")[i])
-          lastRow.querySelectorAll(".timeInput")[i].value = t;
-      });
-
-      lastRow.querySelector(".ptoInput").value = emp.pto || "";
+      emp.times.forEach((t,i)=>{ if(lastRow.querySelectorAll(".timeInput")[i]) lastRow.querySelectorAll(".timeInput")[i].value=t; });
     });
-
     recalcTotals(block);
   });
 }
 
 /* ---------- LOCAL STORAGE ---------- */
-function saveLocal(){
-  localStorage.setItem("schedulerData", JSON.stringify(collectData()));
-  alert("Saved locally!");
-}
+function saveLocal(){ localStorage.setItem("schedulerData",JSON.stringify(collectData())); alert("Saved locally!"); }
 function loadLocal(){
   const raw = localStorage.getItem("schedulerData");
-  if (!raw) return alert("No saved data.");
+  if(!raw) return alert("No saved data.");
   importObject(JSON.parse(raw));
 }
 
 /* ---------- GITHUB SAVE ---------- */
 async function saveToGithub(){
-  const token = document.getElementById("githubToken").value.trim();
-  if (!token) return alert("Enter GitHub token first.");
-
-  const data = collectData();
-  const jsonStr = JSON.stringify(data,null,2);
-  const contentBase64 = btoa(unescape(encodeURIComponent(jsonStr)));
-
-  let sha = null;
-  try {
-    const meta = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`);
-    if (meta.ok) {
-      const info = await meta.json();
-      sha = info.sha;
-    }
-  } catch(e){}
-
-  const res = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + token
-    },
-    body: JSON.stringify({
-      message: "Scheduler update",
-      content: contentBase64,
-      sha: sha || undefined
-    })
+  const token=document.getElementById("githubToken").value.trim();
+  if(!token) return alert("Enter GitHub token first.");
+  const data=collectData();
+  const jsonStr=JSON.stringify(data,null,2);
+  const contentBase64=btoa(unescape(encodeURIComponent(jsonStr)));
+  let sha=null;
+  try{
+    const meta=await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`);
+    if(meta.ok){ const info=await meta.json(); sha=info.sha; }
+  }catch(e){}
+  const res=await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`,{
+    method:"PUT",
+    headers:{ "Content-Type":"application/json", Authorization:"Bearer "+token },
+    body:JSON.stringify({ message:"Scheduler update", content:contentBase64, sha:sha||undefined })
   });
-
-  if (res.ok) alert("Saved to GitHub!");
-  else alert("GitHub Save Failed: " + res.status);
+  if(res.ok) alert("Saved to GitHub!"); else alert("GitHub Save Failed: "+res.status);
 }
 
-/* ---------- GITHUB LOAD (NO TOKEN REQUIRED) ---------- */
+/* ---------- GITHUB LOAD ---------- */
 async function loadFromGithub(){
-  const res = await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`);
-
-  if (!res.ok) return alert("GitHub Load Failed: " + res.status);
-
-  const info = await res.json();
-  const decoded = decodeURIComponent(escape(atob(info.content)));
-
+  const token=document.getElementById("githubToken").value.trim();
+  if(!token) return alert("Enter GitHub token first.");
+  const res=await fetch(`https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`,{ headers:{ Authorization:"Bearer "+token } });
+  if(!res.ok) return alert("GitHub Load Failed: "+res.status);
+  const info=await res.json();
+  const decoded=decodeURIComponent(escape(atob(info.content)));
   importObject(JSON.parse(decoded));
   alert("Loaded from GitHub!");
 }
