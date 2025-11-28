@@ -3,11 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weekly Scheduler + PTO + GitHub Import/Export</title>
+<title>Weekly Scheduler + PTO + GitHub + JSON + Local</title>
 
 <style>
   body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-  h2 { margin-top: 30px; }
   .controls { margin-bottom: 20px; }
   .week-container { 
     background: white; 
@@ -17,27 +16,26 @@
     margin-bottom: 25px;
   }
   table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  th, td { border: 1px solid #999; padding: 6px; text-align: center; }
+  th, td { border: 1px solid #888; padding: 6px; text-align: center; }
   button { padding: 8px 12px; margin: 5px; cursor: pointer; }
   .delete-week { background: #d9534f; color: white; border: none; border-radius: 6px; }
   .add-week { background: #0275d8; color: white; border: none; border-radius: 6px; }
   .save-btn { background: #5cb85c; color: white; border: none; border-radius: 6px; }
   .load-btn { background: #5bc0de; color: white; border: none; border-radius: 6px; }
-  input { padding: 6px; width: 280px; }
-  .totalCell { background: #f0f8ff; font-weight: bold; }
+  .totalCell { background: #eef8ff; font-weight: bold; }
 </style>
 
 </head>
 <body>
 
-<h1>Weekly Scheduler with PTO & GitHub Import/Export</h1>
+<h1>Weekly Scheduler</h1>
 
 <div class="controls">
-  <button class="add-week" onclick="createWeek()">+ Add New Week</button>
+  <button class="add-week" onclick="createWeek()">+ Add Week</button>
   <br><br>
 
-  <label><b>GitHub Token (only required for saving):</b></label><br>
-  <input type="password" id="githubToken" placeholder="Enter GitHub Personal Access Token">
+  <label><b>GitHub Token (ONLY for save):</b></label><br>
+  <input id="githubToken" type="password" placeholder="GitHub Personal Access Token">
   <br><br>
 
   <button class="save-btn" onclick="exportToGitHub()">Save to GitHub</button>
@@ -48,16 +46,18 @@
   <input type="file" id="fileInput" onchange="importLocalFile()">
 </div>
 
+
 <div id="weeks"></div>
 
+
 <script>
-// ---------- GitHub Config ----------
+// GitHub Repo Configuration
 const githubUser = "htdhtdhtd2003";
 const githubRepo = "ndc";
 const githubPath = "schedule560.json";
 
 
-// ---------- TIME CALCULATION WITH PTO ----------
+// ---------------------- PTO & Time Calculation ----------------------
 function parseHours(text) {
     text = text.trim();
 
@@ -84,20 +84,19 @@ function updateTotals(weekDiv) {
 
     rows.forEach(row => {
         const cells = [...row.children];
-        let sum = 0;
+        let total = 0;
 
-        // Day cells = index 1–7
         for (let i = 1; i <= 7; i++) {
-            sum += parseHours(cells[i].innerText);
+            total += parseHours(cells[i].innerText);
         }
 
-        cells[8].innerText = sum.toFixed(2);
+        cells[8].innerText = total.toFixed(2);
     });
 }
 
 
 
-// ---------- WEEK CREATION ----------
+// ---------------------- CREATE WEEK ----------------------
 function createWeek(loadedData = null) {
     const container = document.getElementById("weeks");
 
@@ -105,10 +104,10 @@ function createWeek(loadedData = null) {
     weekDiv.className = "week-container";
 
     const delBtn = document.createElement("button");
-    delBtn.className = "delete-week";
     delBtn.textContent = "Delete This Week";
+    delBtn.className = "delete-week";
     delBtn.onclick = () => {
-        if (confirm("Are you sure you want to delete this week?")) {
+        if (confirm("Delete this week?")) {
             weekDiv.remove();
             saveLocal();
         }
@@ -131,20 +130,20 @@ function createWeek(loadedData = null) {
 
     const tbody = table.querySelector("tbody");
 
-    const employees = loadedData ? loadedData : [
+    const rows = loadedData ? loadedData : [
         ["", "", "", "", "", "", "", "", "0"],
         ["", "", "", "", "", "", "", "", "0"],
         ["", "", "", "", "", "", "", "", "0"]
     ];
 
-    employees.forEach(row => {
+    rows.forEach(row => {
         const tr = document.createElement("tr");
 
         row.forEach((cell, i) => {
             const td = document.createElement("td");
-            td.contentEditable = i !== 8;
             td.innerText = cell;
 
+            td.contentEditable = i !== 8;
             if (i === 8) td.classList.add("totalCell");
 
             td.oninput = () => {
@@ -167,44 +166,40 @@ function createWeek(loadedData = null) {
 
 
 
-// ---------- LOCAL STORAGE SAVE ----------
+// ---------------------- LOCAL STORAGE SAVE/LOAD ----------------------
 function saveLocal() {
-    const weeks = [...document.querySelectorAll(".week-container")].map(week => {
-        return [...week.querySelectorAll("tbody tr")].map(tr =>
+    const weeks = [...document.querySelectorAll(".week-container")].map(week =>
+        [...week.querySelectorAll("tbody tr")].map(tr =>
             [...tr.children].map(td => td.innerText)
-        );
-    });
+        )
+    );
 
     localStorage.setItem("schedule560_data", JSON.stringify(weeks));
 }
 
-
-
-// ---------- LOCAL STORAGE LOAD ----------
 function loadLocal() {
     const data = localStorage.getItem("schedule560_data");
     if (!data) return;
-
     const weeks = JSON.parse(data);
-    weeks.forEach(weekData => createWeek(weekData));
+    weeks.forEach(w => createWeek(w));
 }
 
 
 
-// ---------- EXPORT LOCAL FILE ----------
+// ---------------------- EXPORT JSON FILE ----------------------
 function exportLocalFile() {
-    const weeks = localStorage.getItem("schedule560_data") || "[]";
+    const data = localStorage.getItem("schedule560_data") || "[]";
 
-    const blob = new Blob([weeks], { type: "application/json" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "schedule560.json";
-    link.click();
+    const blob = new Blob([data], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "schedule560.json";
+    a.click();
 }
 
 
 
-// ---------- IMPORT LOCAL FILE ----------
+// ---------------------- IMPORT JSON FILE ----------------------
 function importLocalFile() {
     const file = document.getElementById("fileInput").files[0];
     if (!file) return;
@@ -216,42 +211,43 @@ function importLocalFile() {
         weeks.forEach(w => createWeek(w));
         saveLocal();
     };
-
     reader.readAsText(file);
 }
 
 
 
-// ---------- GITHUB IMPORT ----------
+// ---------------------- GITHUB IMPORT (FIXED) ----------------------
 async function importFromGitHub() {
-    const url = `https://raw.githubusercontent.com/${githubUser}/${githubRepo}/main/${githubPath}`;
+    const timestamp = Date.now();
+    const url = `https://raw.githubusercontent.com/${githubUser}/${githubRepo}/main/${githubPath}?v=${timestamp}`;
 
     try {
-        const res = await fetch(url);
+        const res = await fetch(url, { cache: "no-store" });
+
         if (!res.ok) {
-            alert("Error loading file from GitHub.");
+            alert("Failed to load file from GitHub.");
             return;
         }
 
         const weeks = await res.json();
+
         document.getElementById("weeks").innerHTML = "";
         weeks.forEach(w => createWeek(w));
 
-        alert("Loaded from GitHub!");
-    } catch (e) {
-        alert("Failed to import.");
+        saveLocal();
+        alert("Loaded successfully from GitHub!");
+
+    } catch (err) {
+        alert("GitHub import failed.");
     }
 }
 
 
 
-// ---------- GITHUB EXPORT ----------
+// ---------------------- GITHUB EXPORT ----------------------
 async function exportToGitHub() {
     const token = document.getElementById("githubToken").value.trim();
-    if (!token) {
-        alert("GitHub token required to save.");
-        return;
-    }
+    if (!token) return alert("GitHub token required.");
 
     const weeks = [...document.querySelectorAll(".week-container")].map(week =>
         [...week.querySelectorAll("tbody tr")].map(tr =>
@@ -259,17 +255,16 @@ async function exportToGitHub() {
         )
     );
 
-    const jsonContent = JSON.stringify(weeks, null, 2);
-
+    const content = JSON.stringify(weeks, null, 2);
     const getUrl = `https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`;
 
     const existing = await fetch(getUrl);
-    const existingData = await existing.json();
-    const sha = existingData.sha;
+    const oldData = await existing.json();
+    const sha = oldData.sha;
 
     const body = {
         message: "Update schedule560.json",
-        content: btoa(unescape(encodeURIComponent(jsonContent))),
+        content: btoa(unescape(encodeURIComponent(content))),
         sha: sha
     };
 
@@ -282,18 +277,15 @@ async function exportToGitHub() {
         body: JSON.stringify(body)
     });
 
-    if (res.ok) {
-        alert("Saved to GitHub!");
-    } else {
-        alert("Failed to save.");
-    }
+    if (res.ok) alert("Saved to GitHub!");
+    else alert("Failed to save.");
 }
 
 
-// Load saved weeks on startup
+
+// ---------------------- INITIAL LOAD ----------------------
 loadLocal();
 
 </script>
-
 </body>
 </html>
