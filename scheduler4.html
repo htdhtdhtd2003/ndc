@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weekly Scheduler + PTO Hours + GitHub Export/Import</title>
+<title>Weekly Scheduler + PTO + GitHub Import/Export</title>
 
 <style>
   body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
@@ -24,43 +24,86 @@
   .save-btn { background: #5cb85c; color: white; border: none; border-radius: 6px; }
   .load-btn { background: #5bc0de; color: white; border: none; border-radius: 6px; }
   input { padding: 6px; width: 280px; }
+  .totalCell { background: #f0f8ff; font-weight: bold; }
 </style>
 
 </head>
 <body>
 
-<h1>Weekly Scheduler with PTO Auto-Add + GitHub Import/Export</h1>
+<h1>Weekly Scheduler with PTO & GitHub Import/Export</h1>
 
 <div class="controls">
   <button class="add-week" onclick="createWeek()">+ Add New Week</button>
   <br><br>
 
-  <label><b>GitHub Token (required only for saving):</b></label><br>
+  <label><b>GitHub Token (only required for saving):</b></label><br>
   <input type="password" id="githubToken" placeholder="Enter GitHub Personal Access Token">
   <br><br>
 
   <button class="save-btn" onclick="exportToGitHub()">Save to GitHub</button>
   <button class="load-btn" onclick="importFromGitHub()">Load from GitHub</button>
+
+  <br><br>
+  <button onclick="exportLocalFile()">Export JSON File</button>
+  <input type="file" id="fileInput" onchange="importLocalFile()">
 </div>
 
 <div id="weeks"></div>
 
 <script>
-
 // ---------- GitHub Config ----------
 const githubUser = "htdhtdhtd2003";
 const githubRepo = "ndc";
 const githubPath = "schedule560.json";
 
 
-// ---------- Create Week ----------
+// ---------- TIME CALCULATION WITH PTO ----------
+function parseHours(text) {
+    text = text.trim();
+
+    if (text.toLowerCase() === "pto") return 8;
+
+    if (!text.includes("-")) return 0;
+
+    let [start, end] = text.split("-");
+
+    function convert(t) {
+        t = t.trim().toLowerCase();
+        let [num, ampm] = t.split(/(am|pm)/);
+        let [h, m] = num.split(":").map(Number);
+        if (ampm === "pm" && h !== 12) h += 12;
+        if (ampm === "am" && h === 12) h = 0;
+        return h + (m || 0) / 60;
+    }
+
+    return Math.max(0, convert(end) - convert(start));
+}
+
+function updateTotals(weekDiv) {
+    const rows = weekDiv.querySelectorAll("tbody tr");
+
+    rows.forEach(row => {
+        const cells = [...row.children];
+        let sum = 0;
+
+        // Day cells = index 1–7
+        for (let i = 1; i <= 7; i++) {
+            sum += parseHours(cells[i].innerText);
+        }
+
+        cells[8].innerText = sum.toFixed(2);
+    });
+}
+
+
+
+// ---------- WEEK CREATION ----------
 function createWeek(loadedData = null) {
     const container = document.getElementById("weeks");
 
     const weekDiv = document.createElement("div");
     weekDiv.className = "week-container";
 
-    // Delete button
     const delBtn = document.createElement("button");
     delBtn.className = "delete-week";
     delBtn.textContent = "Delete This Week";
@@ -70,9 +113,9 @@ function createWeek(loadedData = null) {
             saveLocal();
         }
     };
+
     weekDiv.appendChild(delBtn);
 
-    // Week table
     const table = document.createElement("table");
     table.innerHTML = `
       <thead>
@@ -80,73 +123,51 @@ function createWeek(loadedData = null) {
           <th>Employee</th>
           <th>Sun</th><th>Mon</th><th>Tue</th>
           <th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
-          <th>Total Hours</th>
+          <th>Total</th>
         </tr>
       </thead>
       <tbody></tbody>
     `;
+
     const tbody = table.querySelector("tbody");
 
-    // Default 3 rows if no data
     const employees = loadedData ? loadedData : [
-        ["", "", "", "", "", "", "", "", ""],
-        ["", "", "", "", "", "", "", "", ""],
-        ["", "", "", "", "", "", "", "", ""]
+        ["", "", "", "", "", "", "", "", "0"],
+        ["", "", "", "", "", "", "", "", "0"],
+        ["", "", "", "", "", "", "", "", "0"]
     ];
 
     employees.forEach(row => {
         const tr = document.createElement("tr");
-        row.forEach(cell => {
+
+        row.forEach((cell, i) => {
             const td = document.createElement("td");
-            td.contentEditable = "true";
+            td.contentEditable = i !== 8;
             td.innerText = cell;
-            td.oninput = () => { saveLocal(); calculateTotals(); };
+
+            if (i === 8) td.classList.add("totalCell");
+
+            td.oninput = () => {
+                updateTotals(weekDiv);
+                saveLocal();
+            };
+
             tr.appendChild(td);
         });
+
         tbody.appendChild(tr);
     });
 
     weekDiv.appendChild(table);
     container.appendChild(weekDiv);
-    calculateTotals();
+
+    updateTotals(weekDiv);
     saveLocal();
 }
 
 
 
-// ---------- Calculate Weekly Totals + PTO ----------
-function calculateTotals() {
-    document.querySelectorAll(".week-container").forEach(week => {
-        const rows = week.querySelectorAll("tbody tr");
-
-        rows.forEach(row => {
-            const cells = row.querySelectorAll("td");
-            let total = 0;
-
-            // last cell is total-hours column
-            for (let i = 1; i <= 7; i++) {
-                let value = cells[i].innerText.trim();
-
-                // PTO logic
-                if (value.toLowerCase() === "pto") {
-                    total += 8;
-                }
-
-                // If numeric hours exist
-                let numeric = parseFloat(value);
-                if (!isNaN(numeric)) {
-                    total += numeric;
-                }
-            }
-
-            cells[8].innerText = total.toFixed(2);
-        });
-    });
-}
-
-
-
-// ---------- Local Storage Save ----------
+// ---------- LOCAL STORAGE SAVE ----------
 function saveLocal() {
     const weeks = [...document.querySelectorAll(".week-container")].map(week => {
         return [...week.querySelectorAll("tbody tr")].map(tr =>
@@ -159,18 +180,49 @@ function saveLocal() {
 
 
 
-// ---------- Load from Local Storage ----------
+// ---------- LOCAL STORAGE LOAD ----------
 function loadLocal() {
     const data = localStorage.getItem("schedule560_data");
     if (!data) return;
 
     const weeks = JSON.parse(data);
-    weeks.forEach(week => createWeek(week));
+    weeks.forEach(weekData => createWeek(weekData));
 }
 
 
 
-// ---------- Import from GitHub (no token needed) ----------
+// ---------- EXPORT LOCAL FILE ----------
+function exportLocalFile() {
+    const weeks = localStorage.getItem("schedule560_data") || "[]";
+
+    const blob = new Blob([weeks], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "schedule560.json";
+    link.click();
+}
+
+
+
+// ---------- IMPORT LOCAL FILE ----------
+function importLocalFile() {
+    const file = document.getElementById("fileInput").files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const weeks = JSON.parse(e.target.result);
+        document.getElementById("weeks").innerHTML = "";
+        weeks.forEach(w => createWeek(w));
+        saveLocal();
+    };
+
+    reader.readAsText(file);
+}
+
+
+
+// ---------- GITHUB IMPORT ----------
 async function importFromGitHub() {
     const url = `https://raw.githubusercontent.com/${githubUser}/${githubRepo}/main/${githubPath}`;
 
@@ -186,14 +238,14 @@ async function importFromGitHub() {
         weeks.forEach(w => createWeek(w));
 
         alert("Loaded from GitHub!");
-    } catch {
+    } catch (e) {
         alert("Failed to import.");
     }
 }
 
 
 
-// ---------- Export to GitHub (token required) ----------
+// ---------- GITHUB EXPORT ----------
 async function exportToGitHub() {
     const token = document.getElementById("githubToken").value.trim();
     if (!token) {
@@ -201,21 +253,19 @@ async function exportToGitHub() {
         return;
     }
 
-    // Build JSON package
-    const weeks = [...document.querySelectorAll(".week-container")].map(week => {
-        return [...week.querySelectorAll("tbody tr")].map(tr =>
+    const weeks = [...document.querySelectorAll(".week-container")].map(week =>
+        [...week.querySelectorAll("tbody tr")].map(tr =>
             [...tr.children].map(td => td.innerText)
-        );
-    });
+        )
+    );
 
     const jsonContent = JSON.stringify(weeks, null, 2);
 
-    const apiURL = `https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`;
+    const getUrl = `https://api.github.com/repos/${githubUser}/${githubRepo}/contents/${githubPath}`;
 
-    // Retrieve SHA of existing file
-    const existingReq = await fetch(apiURL);
-    const existing = await existingReq.json();
-    const sha = existing.sha;
+    const existing = await fetch(getUrl);
+    const existingData = await existing.json();
+    const sha = existingData.sha;
 
     const body = {
         message: "Update schedule560.json",
@@ -223,7 +273,7 @@ async function exportToGitHub() {
         sha: sha
     };
 
-    const res = await fetch(apiURL, {
+    const res = await fetch(getUrl, {
         method: "PUT",
         headers: {
             "Authorization": `token ${token}`,
@@ -240,11 +290,10 @@ async function exportToGitHub() {
 }
 
 
-
-// ---------- Startup ----------
+// Load saved weeks on startup
 loadLocal();
-calculateTotals();
 
 </script>
+
 </body>
 </html>
