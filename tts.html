@@ -1,357 +1,206 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Voice → Letters & Numbers</title>
-  <style>
-    :root{
-      --bg:#0f1724;
-      --card:#0b1220;
-      --muted:#9aa4b2;
-      --accent:#5eead4;
-      --glass: rgba(255,255,255,0.03);
-    }
-    body{font-family:Inter,system-ui,Arial,sans-serif;background:linear-gradient(180deg,#071021, #081426);color:#e6eef6;padding:18px}
-    .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6);max-width:880px;margin:16px auto}
-    h1{margin:0 0 8px;font-size:20px}
-    p{margin:6px 0;color:var(--muted);font-size:14px}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    button{background:var(--accent);border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
-    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
-    label{display:flex;align-items:center;gap:8px;color:var(--muted)}
-    textarea{width:100%;min-height:140px;background:var(--glass);border:1px solid rgba(255,255,255,0.03);color:#e8f6f1;padding:12px;border-radius:8px;font-size:15px;resize:vertical}
-    .small{font-size:13px;color:var(--muted)}
-    .status{padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.02);font-weight:600}
-    .controls{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
-    .meta{margin-top:10px;color:var(--muted);font-size:13px}
-    code{background:rgba(255,255,255,0.02);padding:2px 6px;border-radius:4px}
-  </style>
+<meta charset="UTF-8">
+<title>Train Your Voice → Letters & Numbers</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  body { font-family: Arial; padding: 20px; background: #111; color: #eee; }
+  button { padding: 10px 14px; margin: 5px; border-radius: 6px; border: none; }
+  .primary { background: #29f; color: #fff; }
+  .danger { background: #d33; color: #fff; }
+  .card { background: #222; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+  .log { background: #000; padding: 10px; height: 140px; overflow-y: auto; white-space: pre; }
+  .big { font-size: 20px; margin: 10px 0; }
+</style>
 </head>
 <body>
-  <div class="card">
-    <h1>Voice → Letters & Numbers (a–z, 0–9)</h1>
-    <p>Speak single letters and/or digits. The script maps common spoken forms (e.g. "bee" → b, "see" → c, "two/too" → 2, "alpha" → a, "zero/oh" → 0, etc.) and appends only letters or digits to the output.</p>
 
-    <div class="row" style="margin-bottom:8px">
-      <div class="status" id="status">Idle</div>
-      <div style="flex:1"></div>
-      <label class="small"><input id="continuous" type="checkbox"> Continuous listen</label>
-      <label class="small"><input id="spaces" type="checkbox"> Insert spaces between tokens</label>
-    </div>
+<h2>Train Your Voice (Letters + Numbers)</h2>
 
-    <div class="controls">
-      <button id="startBtn">Start</button>
-      <button id="stopBtn" class="secondary">Stop</button>
-      <button id="clearBtn" class="secondary">Clear</button>
-      <button id="copyBtn" class="secondary">Copy</button>
-    </div>
+<div class="card">
+  <p>Click a character below and speak it the way YOU pronounce it.</p>
+  <div id="buttons"></div>
+  <p><button class="danger" onclick="clearTraining()">Clear All Training</button></p>
+</div>
 
-    <div style="margin-top:12px">
-      <label class="small">Output (only letters & digits will appear):</label>
-      <textarea id="output" placeholder="Recognized characters appear here..." aria-label="recognized output"></textarea>
-    </div>
+<div class="card">
+  <h3>Recognition</h3>
+  <button class="primary" onclick="startRecognition()">Start Recognizing</button>
+  <button onclick="stopRecognition()">Stop</button>
 
-    <div style="margin-top:12px">
-      <label class="small">Last raw transcript (for debugging):</label>
-      <textarea id="raw" readonly style="min-height:60px"></textarea>
-    </div>
+  <div class="big">Output: <span id="out"></span></div>
+</div>
 
-    <p class="meta">Browser note: This uses the Web Speech API (SpeechRecognition). Works best in Chromium-based browsers (Chrome desktop & Android). If your browser doesn't support it, you'll see a message below.</p>
-    <div id="supportMsg" class="small" style="color:#fda">Checking support...</div>
-  </div>
+<div class="card">
+  <h3>Log</h3>
+  <div id="log" class="log"></div>
+</div>
 
-  <script>
-    // Feature detection
-    window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-    const supportMsg = document.getElementById('supportMsg');
-    if (!window.SpeechRecognition) {
-      supportMsg.textContent = 'SpeechRecognition API not supported in this browser. Use Chrome or Edge (desktop or Android) for best results.';
-    } else {
-      supportMsg.textContent = 'SpeechRecognition available.';
+<script>
+// ===== GLOBAL =====
+let audioCtx;
+let stream;
+let processor;
+let training = {};  // letter → array of feature vectors
+let running = false;
+
+// Load saved training
+if (localStorage.voiceTraining) {
+  training = JSON.parse(localStorage.voiceTraining);
+}
+
+// ===== UI buttons for A–Z and 0–9 =====
+const chars = [];
+for (let i=0;i<26;i++) chars.push(String.fromCharCode(97+i)); // a-z
+for (let i=0;i<=9;i++) chars.push(String(i)); // numbers
+
+const btnArea = document.getElementById("buttons");
+chars.forEach(c=>{
+  const b = document.createElement("button");
+  b.textContent = c.toUpperCase();
+  b.onclick = ()=>trainChar(c);
+  btnArea.appendChild(b);
+});
+
+// Logging helper
+function log(msg){
+  let box = document.getElementById("log");
+  box.textContent += msg+"\n";
+  box.scrollTop = box.scrollHeight;
+}
+
+// ===== AUDIO SETUP =====
+async function initAudio() {
+  if(!audioCtx) audioCtx = new AudioContext();
+  stream = await navigator.mediaDevices.getUserMedia({audio:true});
+  const src = audioCtx.createMediaStreamSource(stream);
+  processor = audioCtx.createScriptProcessor(2048, 1, 1);
+  src.connect(processor);
+  processor.connect(audioCtx.destination);
+}
+
+// Extract simple FFT + energy features
+function extractFeatures(inputBuffer) {
+  const raw = inputBuffer.getChannelData(0);
+  const size = 1024;
+  const segment = raw.slice(0, size);
+
+  // Basic energy
+  let energy = 0;
+  for (let i=0;i<segment.length;i++) energy += segment[i]*segment[i];
+  energy /= segment.length;
+
+  // Basic FFT
+  const fft = new Float32Array(size);
+  const re = new Float32Array(size);
+  const im = new Float32Array(size);
+  for (let i=0;i<size;i++) re[i] = segment[i];
+  // naive FFT
+  for (let k=0;k<size;k++){
+    let sumRe = 0, sumIm = 0;
+    for(let n=0;n<size;n++){
+      const ang = (2*Math.PI*k*n)/size;
+      sumRe += re[n]*Math.cos(ang) + im[n]*Math.sin(ang);
+      sumIm += -re[n]*Math.sin(ang) + im[n]*Math.cos(ang);
     }
+    fft[k] = Math.sqrt(sumRe*sumRe + sumIm*sumIm);
+  }
 
-    // Elements
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const copyBtn = document.getElementById('copyBtn');
-    const outputEl = document.getElementById('output');
-    const rawEl = document.getElementById('raw');
-    const statusEl = document.getElementById('status');
-    const continuousEl = document.getElementById('continuous');
-    const spacesEl = document.getElementById('spaces');
+  // Downsample FFT into 16 bins
+  const bins = 16;
+  const f = [];
+  const step = Math.floor(size/bins);
+  for(let b=0;b<bins;b++){
+    let sum = 0;
+    for(let i=b*step;i<(b+1)*step;i++){
+      sum += fft[i];
+    }
+    f.push(sum);
+  }
 
-    // Mapping: common spoken tokens -> single char (letter or digit)
-    const mapping = {
-      // digits & homophones
-      'zero': '0', 'oh': '0', 'o': '0',
-      'one': '1', 'won': '1',
-      'two': '2', 'too': '2', 'to': '2',
-      'three': '3', 'tree': '3',
-      'four': '4', 'for': '4', 'fore': '4',
-      'five': '5', 'fife':'5',
-      'six': '6', 'sex':'6',
-      'seven':'7',
-      'eight':'8', 'ate':'8',
-      'nine':'9', 'nein':'9',
-      // letters via common homophones
-      'a':'a','ay':'a','eh':'a',
-      'b':'b','bee':'b','be':'b',
-      'c':'c','see':'c','sea':'c',
-      'd':'d','dee':'d',
-      'e':'e','ee':'e',
-      'f':'f','ef':'f',
-      'g':'g','gee':'g',
-      'h':'h','aitch':'h',
-      'i':'i','eye':'i',
-      'j':'j','jay':'j',
-      'k':'k','kay':'k',
-      'l':'l','el':'l',
-      'm':'m','em':'m',
-      'n':'n','en':'n',
-      'o':'o','oh':'o',
-      'p':'p','pee':'p',
-      'q':'q','cue':'q','queue':'q',
-      'r':'r','are':'r',
-      's':'s','ess':'s',
-      't':'t','tee':'t',
-      'u':'u','you':'u','yew':'u',
-      'v':'v','vee':'v',
-      'w':'w','doubleyou':'w','double':'w','double you':'w',
-      'x':'x','ex':'x',
-      'y':'y','why':'y',
-      'z':'z','zee':'z','zed':'z',
-      // NATO phonetic
-      'alpha':'a','bravo':'b','charlie':'c','delta':'d','echo':'e','foxtrot':'f','golf':'g',
-      'hotel':'h','india':'i','juliett':'j','juliet':'j','kilo':'k','lima':'l','mike':'m',
-      'november':'n','oscar':'o','papa':'p','quebec':'q','romeo':'r','sierra':'s','tango':'t',
-      'uniform':'u','victor':'v','whiskey':'w','xray':'x','x-ray':'x','yankee':'y','zulu':'z'
+  f.push(energy);
+  return f;
+}
+
+// Euclidean distance
+function dist(a,b){
+  let s=0;
+  for(let i=0;i<a.length;i++){
+    let d=a[i]-b[i];
+    s+=d*d;
+  }
+  return Math.sqrt(s);
+}
+
+// Train a single letter/number
+async function trainChar(ch){
+  log("Training for: "+ch);
+
+  await initAudio();
+
+  return new Promise(resolve=>{
+    let collected = [];
+
+    processor.onaudioprocess = (e)=>{
+      const input = e.inputBuffer;
+      const f = extractFeatures(input);
+      collected.push(f);
+      if (collected.length >= 12) { // short recording
+        processor.onaudioprocess = null;
+
+        training[ch] = collected;  // store samples
+        localStorage.voiceTraining = JSON.stringify(training);
+
+        log("Saved training for: "+ch+" ("+collected.length+" samples)");
+        resolve();
+      }
     };
+  });
+}
 
-    // helper: normalize a token to a single letter or digit, or null
-    function normalizeToken(token) {
-      if (!token) return null;
-      // clean punctuation
-      token = token.toLowerCase().trim();
-      token = token.replace(/[^\w\- ]+/g,''); // remove punctuation except hyphen
-      // direct single-char acceptance
-      if (/^[a-z0-9]$/.test(token)) return token;
-      // token may be multi-character digits like 'ten' -> not accepted unless mapped
-      if (mapping[token]) return mapping[token];
-      // handle tokens like "b c d" in one recognized chunk (split by space or hyphen)
-      if (token.includes(' ')) {
-        const parts = token.split(/\s+/);
-        const out = [];
-        for (const p of parts) {
-          const n = normalizeToken(p);
-          if (n) out.push(n);
+// Start recognition
+async function startRecognition(){
+  await initAudio();
+  running = true;
+  log("Recognition started");
+
+  processor.onaudioprocess = (e)=>{
+    if (!running) return;
+
+    const f = extractFeatures(e.inputBuffer);
+    let best = null;
+    let bestDist = Infinity;
+
+    for (const ch in training) {
+      const samples = training[ch];
+      for (const s of samples){
+        const d = dist(f,s);
+        if (d < bestDist){
+          bestDist = d;
+          best = ch;
         }
-        return out.length ? out.join('') : null;
-      }
-      if (token.includes('-')) {
-        const parts = token.split('-');
-        const out = [];
-        for (const p of parts) {
-          const n = normalizeToken(p);
-          if (n) out.push(n);
-        }
-        return out.length ? out.join('') : null;
-      }
-      // last attempt: maybe token ends with "s" from plural ("bees" -> bee -> b)
-      if (token.length > 1 && token.endsWith('s')) {
-        return normalizeToken(token.slice(0,-1));
-      }
-      return null;
-    }
-
-    // Build the SpeechRecognition
-    let recognition = null;
-    let listening = false;
-    if (window.SpeechRecognition) {
-      recognition = new window.SpeechRecognition();
-      recognition.lang = 'en-US';
-      recognition.interimResults = false; // only final results
-      recognition.maxAlternatives = 3;
-      // continuous is controlled manually (see checkbox)
-    }
-
-    function setStatus(text, color = '') {
-      statusEl.textContent = text;
-      if (color) statusEl.style.color = color;
-      else statusEl.style.color = '';
-    }
-
-    function startListening() {
-      if (!recognition) {
-        alert('SpeechRecognition not supported in this browser.');
-        return;
-      }
-      try {
-        recognition.start();
-        listening = true;
-        setStatus('Listening… (speak letters & digits)', '#7ef3d7');
-      } catch (err) {
-        // some browsers throw if start called while already started
-        // ignore
       }
     }
 
-    function stopListening() {
-      if (!recognition) return;
-      try {
-        recognition.stop();
-      } catch (e) {}
-      listening = false;
-      setStatus('Stopped');
+    if (best !== null) {
+      document.getElementById("out").textContent += best;
     }
+  };
+}
 
-    // Event handlers
-    if (recognition) {
-      recognition.onstart = () => {
-        listening = true;
-        setStatus('Listening… (speak letters & digits)', '#7ef3d7');
-      };
+function stopRecognition(){
+  running = false;
+  log("Stopped recognition.");
+}
 
-      recognition.onend = () => {
-        listening = false;
-        setStatus('Idle');
-        // if continuous mode requested, restart
-        if (continuousEl.checked) {
-          // a tiny delay helps avoid some browser hangups
-          setTimeout(()=> {
-            if (continuousEl.checked) startListening();
-          }, 200);
-        }
-      };
+function clearTraining(){
+  localStorage.removeItem("voiceTraining");
+  training = {};
+  log("Training cleared.");
+}
 
-      recognition.onerror = (e) => {
-        // show the error
-        setStatus('Error: ' + (e && e.error ? e.error : e.message || 'unknown'), '#fda');
-        // if continuous mode, try restart
-        if (continuousEl.checked) {
-          setTimeout(()=> {
-            if (continuousEl.checked) startListening();
-          }, 600);
-        }
-      };
-
-      recognition.onresult = (evt) => {
-        // evt.results is a SpeechRecognitionResultList
-        const results = [];
-        for (let i = 0; i < evt.results.length; i++) {
-          if (evt.results[i].isFinal) {
-            results.push(evt.results[i][0].transcript);
-          }
-        }
-        if (results.length === 0 && evt.results[0] && evt.results[0][0]) {
-          results.push(evt.results[0][0].transcript);
-        }
-        const joined = results.join(' ').trim();
-        rawEl.value = joined;
-
-        // break transcript into tokens (many ASR engines return words like "bee see dee" or "b c d")
-        // We will try to extract letters/digits from the transcript
-        const tokens = joined.split(/\s+/).map(t => t.trim()).filter(Boolean);
-        const outputParts = [];
-        for (const tok of tokens) {
-          const normalized = normalizeToken(tok);
-          if (!normalized) {
-            // try splitting by characters if token length > 1 and contains letters/digits
-            // e.g., "abcd" => a b c d
-            if (/^[a-z0-9]{2,}$/i.test(tok)) {
-              for (const ch of tok) {
-                if (/^[a-z0-9]$/i.test(ch)) outputParts.push(ch.toLowerCase());
-              }
-            } else {
-              // ignore non-mapped token
-            }
-          } else {
-            // normalized can be multi-char (e.g., "bee see" returned as "beesc" etc)
-            for (const ch of normalized) outputParts.push(ch.toLowerCase());
-          }
-        }
-
-        if (outputParts.length) {
-          const sep = spacesEl.checked ? ' ' : '';
-          // append to output
-          const before = outputEl.value;
-          // don't auto-add extra space if before ends with space and sep is space
-          let addition = outputParts.join(sep);
-          if (before && !/\s$/.test(before) && spacesEl.checked && before.length > 0) {
-            // ensure separation
-            outputEl.value = before + ' ' + addition;
-          } else {
-            outputEl.value = before + addition;
-          }
-        }
-      };
-    }
-
-    // Button handlers
-    startBtn.addEventListener('click', () => {
-      if (!recognition) {
-        alert('SpeechRecognition API not supported in this browser.');
-        return;
-      }
-      recognition.abort(); // reset
-      // set recognition.continuous based on checkbox — but many browsers ignore continuous; we handle restart onend ourselves
-      recognition.continuous = false;
-      startListening();
-    });
-
-    stopBtn.addEventListener('click', () => {
-      continuousEl.checked = false;
-      stopListening();
-    });
-
-    clearBtn.addEventListener('click', () => {
-      outputEl.value = '';
-      rawEl.value = '';
-    });
-
-    copyBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(outputEl.value);
-        copyBtn.textContent = 'Copied ✓';
-        setTimeout(()=> copyBtn.textContent = 'Copy', 1200);
-      } catch (e) {
-        alert('Copy failed: ' + e);
-      }
-    });
-
-    // Start/stop when user toggles continuous
-    continuousEl.addEventListener('change', () => {
-      if (continuousEl.checked) {
-        // start if not started
-        startBtn.disabled = true;
-        startListening();
-      } else {
-        startBtn.disabled = false;
-        stopListening();
-      }
-    });
-
-    // hotkeys: press 's' to start/stop
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 's' && !e.metaKey && !e.ctrlKey) {
-        if (listening) {
-          continuousEl.checked = false;
-          stopListening();
-        } else {
-          recognition && startListening();
-        }
-      }
-    });
-
-    // accessibility: announce initial support status
-    setTimeout(()=> {
-      if (!window.SpeechRecognition) {
-        setStatus('SpeechRecognition not supported in this browser.', '#fda');
-      } else {
-        setStatus('Ready');
-      }
-    }, 200);
-  </script>
+</script>
 </body>
 </html>
