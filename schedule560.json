@@ -108,12 +108,12 @@
           "name": "Malcolm",
           "times": [
             "",
-            "",
+            "4:30p-8p-possible",
             "430p-8p",
             "430p-8p ",
             "430p-8p ",
             "430p-8p ",
-            ""
+            "9a-5p-possible"
           ]
         },
         {
@@ -185,10 +185,10 @@
           "name": "Malcolm",
           "times": [
             "",
+            "430p-8p",
             "",
-            "10a-3p",
-            "430p-8p ",
-            "9a-2p-request ",
+            "430p-8p",
+            "430p-8p",
             "430p-8p ",
             ""
           ]
@@ -197,10 +197,10 @@
           "name": "Tomoyo",
           "times": [
             "",
-            "12p-8p",
             "",
+            "10a-3p",
             "",
-            "",
+            "request off after 2pm",
             "9A-5P",
             ""
           ]
