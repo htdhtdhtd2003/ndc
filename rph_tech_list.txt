@@ -41,12 +41,6 @@
     "cprDate": "2026-11-14"
   },
   {
-    "role": "TECH",
-    "name": "Johanna Wise",
-    "licenseDate": "2025-11-30",
-    "cprDate": ""
-  },
-  {
     "id": 1759469525351,
     "role": "TECH",
     "name": "Madilyn Swann",
@@ -65,12 +59,6 @@
     "role": "TECH",
     "name": "Sowjanya Kandregula",
     "licenseDate": "2027-05-31",
-    "cprDate": ""
-  },
-  {
-    "role": "TECH",
-    "name": "Terri Denise Ingram",
-    "licenseDate": "2027-09-30",
     "cprDate": ""
   },
   {
