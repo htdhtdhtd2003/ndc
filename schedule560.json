@@ -239,10 +239,10 @@
           "times": [
             "",
             "10a-6P",
-            "2p-8P",
-            "9A-5P",
+            "12p-8P",
+            "Pto-pto",
             "Closed",
-            "10A-8P",
+            "9a-5p",
             ""
           ]
         },
@@ -250,18 +250,18 @@
           "name": "Sowjanya",
           "times": [
             "",
-            "off?? WAAD CAN WORK",
-            "off??? WAAD CAB WIRJ",
-            "off???",
+            "Pto-pto",
+            "10a-6p",
+            "9a-5p",
             "Closed",
-            "off??",
+            "11a-7p",
             ""
           ]
         },
         {
           "name": "Malcolm",
           "times": [
-            "POSSIBLE",
+            "",
             "4:30P-9P",
             "Off",
             "Off",
@@ -275,11 +275,11 @@
           "times": [
             "",
             "",
-            "10a-6p",
+            "",
             "9A-5P",
             "Closed ",
-            "9A-7P",
-            "9a-12p"
+            "12p-8p",
+            ""
           ]
         },
         {
@@ -341,7 +341,7 @@
             "Possible",
             "4:30p-8p",
             "4:30p-8p",
-            "4:30p-8p",
+            "",
             "Closed",
             "Off",
             "Off"
