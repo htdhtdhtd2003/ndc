@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Penguin Fart Runner</title>
+
+<style>
+body{
+    margin:0;
+    overflow:hidden;
+    font-family:Arial,sans-serif;
+    background:#87CEEB;
+}
+
+#game{
+    position:relative;
+    width:100vw;
+    height:100vh;
+    overflow:hidden;
+}
+
+#ground{
+    position:absolute;
+    bottom:0;
+    width:100%;
+    height:100px;
+    background:#4CAF50;
+}
+
+#penguin{
+    position:absolute;
+    left:100px;
+    bottom:100px;
+    width:80px;
+    height:80px;
+    font-size:70px;
+    user-select:none;
+}
+
+.obstacle{
+    position:absolute;
+    width:40px;
+    height:70px;
+    background:brown;
+    bottom:100px;
+    border-radius:5px;
+}
+
+.fart{
+    position:absolute;
+    font-size:40px;
+}
+
+#score{
+    position:absolute;
+    top:10px;
+    left:10px;
+    font-size:30px;
+    font-weight:bold;
+}
+
+#gameover{
+    display:none;
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    text-align:center;
+}
+
+button{
+    font-size:20px;
+    padding:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="game">
+
+<div id="score">Score: 0</div>
+
+<div id="penguin">🐧</div>
+
+<div id="ground"></div>
+
+<div id="gameover">
+<h1>Game Over</h1>
+<p id="finalScore"></p>
+<button onclick="restart()">Play Again</button>
+</div>
+
+</div>
+
+<script>
+
+const penguin = document.getElementById("penguin");
+const game = document.getElementById("game");
+
+let y = 0;
+let velocity = 0;
+let gravity = 0.8;
+let jumping = false;
+
+let score = 0;
+let speed = 6;
+let gameRunning = true;
+
+function jump(){
+    if(!jumping){
+        velocity = 15;
+        jumping = true;
+    }
+}
+
+document.addEventListener("keydown",e=>{
+    if(e.code==="Space" || e.code==="ArrowUp"){
+        jump();
+    }
+
+    if(e.code==="KeyF"){
+        fartBoost();
+    }
+});
+
+document.addEventListener("touchstart",jump);
+
+function fartBoost(){
+
+    velocity = 20;
+
+    const fart = document.createElement("div");
+    fart.className="fart";
+    fart.innerHTML="💨";
+
+    fart.style.left="70px";
+    fart.style.bottom=(100+y)+"px";
+
+    game.appendChild(fart);
+
+    setTimeout(()=>{
+        fart.remove();
+    },500);
+}
+
+function createObstacle(){
+
+    const obstacle=document.createElement("div");
+    obstacle.className="obstacle";
+
+    obstacle.style.left=window.innerWidth+"px";
+
+    game.appendChild(obstacle);
+
+    let x=window.innerWidth;
+
+    const move=setInterval(()=>{
+
+        if(!gameRunning){
+            clearInterval(move);
+            return;
+        }
+
+        x-=speed;
+        obstacle.style.left=x+"px";
+
+        const pengRect=penguin.getBoundingClientRect();
+        const obsRect=obstacle.getBoundingClientRect();
+
+        if(
+            pengRect.left < obsRect.right &&
+            pengRect.right > obsRect.left &&
+            pengRect.bottom > obsRect.top
+        ){
+            gameOver();
+        }
+
+        if(x<-50){
+            obstacle.remove();
+            clearInterval(move);
+
+            score++;
+            document.getElementById("score").innerHTML=
+                "Score: "+score;
+        }
+
+    },20);
+}
+
+setInterval(()=>{
+    if(gameRunning){
+        createObstacle();
+    }
+},1800);
+
+function gameLoop(){
+
+    if(!gameRunning)return;
+
+    velocity -= gravity;
+    y += velocity;
+
+    if(y<=0){
+        y=0;
+        velocity=0;
+        jumping=false;
+    }
+
+    penguin.style.bottom=(100+y)+"px";
+
+    requestAnimationFrame(gameLoop);
+}
+
+function gameOver(){
+
+    gameRunning=false;
+
+    document.getElementById("finalScore").innerHTML=
+        "Final Score: "+score;
+
+    document.getElementById("gameover").style.display="block";
+}
+
+function restart(){
+    location.reload();
+}
+
+gameLoop();
+
+</script>
+
+</body>
+</html>
