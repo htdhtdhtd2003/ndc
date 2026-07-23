@@ -2,8 +2,8 @@
   {
     "id": 1763510693033,
     "role": "LICENSE",
-    "name": "Kroger 511",
-    "licenseDate": "2027-02-28",
+    "name": "02/28/2027",
+    "licenseDate": "2028-03-31",
     "cprDate": ""
   },
   {
@@ -17,6 +17,13 @@
     "name": "Tuan Rassool",
     "licenseDate": "2027-02-28",
     "cprDate": "2027-08-31"
+  },
+  {
+    "id": 1784850789774,
+    "role": "TECH",
+    "name": "Abdullah Khan",
+    "licenseDate": "2028-03-31",
+    "cprDate": ""
   },
   {
     "role": "TECH",
